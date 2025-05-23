@@ -1,15 +1,11 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import { APP_NAME } from "~/lib/constants";
+import { useAccount } from "wagmi";
+import ConnectWallet from "~/components/ConnectWallet";
+import Home from "~/components/Home";
 
-// note: dynamic import is required for components that use the Frame SDK
-const Demo = dynamic(() => import("~/components/Demo"), {
-  ssr: false,
-});
+export default function App() {
+  const { isConnected } = useAccount();
 
-export default function App(
-  { title }: { title?: string } = { title: APP_NAME }
-) {
-  return <Demo title={title} />;
+  return isConnected ? <Home /> : <ConnectWallet />;
 }
