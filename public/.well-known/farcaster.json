@@ -1,18 +1,18 @@
 {
     "accountAssociation": {
       "header": "eyJmaWQiOjg4NDgyMywidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDM2YTMxMkEzRjkxOTVCMkIwNmRiOTVmRUQxQzU2RDI4ZEY5N2MzMzQifQ",
-      "payload": "eyJkb21haW4iOiJkY2EtaW52ZXN0LnZlcmNlbC5hcHAifQ",
-      "signature": "MHhmZmUwMjRkOGRiMzc5N2ZkZTQyMjYzNmM3MTQyMWE0OTFhYmQ4OWQ1YzYzZmNlNzlkOThiN2ZkYjk1MTBmNmEyMjI5YzAzYjA1NzlmZTc3NTk5MjU5NGM0NWQ5YzgzNjEyNzhkNzI5Y2UxMzQ3NzNkNjE4ODYzMWQyM2YwYTcwZjFi"
+      "payload": "eyJkb21haW4iOiJkY2EtbWluaWFwcC52ZXJjZWwuYXBwIn0",
+      "signature": "MHgzN2RiYjNjMjhiYzgzZWI2NWNlNjFjNDkxYjBlY2IwNDFlNGM2NGQxNjE2NzNlYWFhZWU3OGVmMDQ0NDIwNDk1MTBhMDU5MDkxOGZiZmZhYWU4NTVjNDkxODhkYTllZjVjYTZmYWMxYjdjYWY5ODYzZWNlYjBkY2MyMGE5NjA3NzFj"
     },
     "frame": {
       "version": "1",
       "name": "Example Frame",
-      "iconUrl": "https://dca-invest.vercel.app/icon.png",
-      "homeUrl": "https://dca-invest.vercel.app",
-      "imageUrl": "https://dca-invest.vercel.app/image.png",
+      "iconUrl": "https://dca-miniapp.vercel.app/icon.png",
+      "homeUrl": "https://dca-miniapp.vercel.app",
+      "imageUrl": "https://dca-miniapp.vercel.app/image.png",
       "buttonTitle": "Check this out",
-      "splashImageUrl": "https://dca-invest.vercel.app/splash.png",
+      "splashImageUrl": "https://dca-miniapp.vercel.app/splash.png",
       "splashBackgroundColor": "#eeccff",
-      "webhookUrl": "https://dca-invest.vercel.app/api/webhook"
+      "webhookUrl": "https://dca-miniapp.vercel.app/api/webhook"
     }
   }
