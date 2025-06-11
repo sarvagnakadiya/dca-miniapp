@@ -1,33 +1,37 @@
 import React, { useState, useEffect } from "react";
 import PositionTile from "./ui/PositionTile";
 import { useFrame } from "~/components/providers/FrameProvider";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import sdk from "@farcaster/frame-sdk";
 
 interface Token {
   id: string;
   address: string;
   symbol: string;
   name: string;
+  image: string;
+  hasActivePlan: boolean;
 }
 
 const Home = () => {
   const [selectedPeriod, setSelectedPeriod] = useState("7D");
   const [tokens, setTokens] = useState<Token[]>([]);
   const { context } = useFrame();
+  const router = useRouter();
 
   useEffect(() => {
     console.log("fetching tokens");
+    console.log("context:::", context);
     const fetchTokens = async () => {
       try {
-        const response = await fetch("http://13.203.67.95:8000/api/tokens", {
-          headers: {
-            "x-api-key":
-              "f1199789c390aa0a0954547740847f19e514155ca51e0179709f377caf6d0a03",
-          },
-        });
+        const response = await fetch(
+          `/api/plan/getUserPlans/${context?.user?.fid}`
+        );
         const result = await response.json();
         if (result.success) {
           setTokens(result.data);
+          await sdk.actions.ready({});
         }
       } catch (error) {
         console.error("Error fetching tokens:", error);
@@ -35,7 +39,7 @@ const Home = () => {
     };
 
     fetchTokens();
-  }, []);
+  }, [context]);
 
   return (
     <div className="min-h-screen bg-black text-white p-4 font-sans">
@@ -49,9 +53,11 @@ const Home = () => {
             <span>$2,000</span>
           </div>
           {context?.user?.pfpUrl ? (
-            <img
+            <Image
               src={context.user.pfpUrl}
               alt="Profile"
+              width={32}
+              height={32}
               className="w-8 h-8 rounded-full object-cover"
             />
           ) : (
@@ -195,29 +201,41 @@ const Home = () => {
       <div className="mb-8">
         <h2 className="text-lg font-medium mb-4">DCA Positions</h2>
 
-        {tokens.map((token) => (
-          <PositionTile
-            key={token.id}
-            icon={token.symbol[0]}
-            iconBgColor="bg-orange-500"
-            name={token.name}
-            currentPrice="$0.00"
-            timeInfo="Just started"
-            investedAmount="$0.00"
-            currentValue="$0.00"
-          />
-        ))}
+        {tokens
+          .filter((token) => token.hasActivePlan)
+          .map((token) => (
+            <div
+              key={token.id}
+              className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
+              onClick={() => router.push(`/token/${token.address}`)}
+            >
+              <PositionTile
+                icon={token.image || token.symbol[0]}
+                iconBgColor="bg-orange-500"
+                name={token.name}
+                currentPrice="$0.00"
+                timeInfo="Just started"
+                investedAmount="$0.00"
+                currentValue="$0.00"
+              />
+            </div>
+          ))}
       </div>
 
       {/* Explore More Tokens */}
       <div>
         <h2 className="text-lg font-medium mb-4">Explore more tokens</h2>
 
-        {tokens.map((token) => (
-          <Link key={token.id} href={`/token/${token.address}`}>
-            <div className="cursor-pointer">
+        {tokens
+          .filter((token) => !token.hasActivePlan)
+          .map((token) => (
+            <div
+              key={token.id}
+              className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
+              onClick={() => router.push(`/token/${token.address}`)}
+            >
               <PositionTile
-                icon={token.symbol[0]}
+                icon={token.image}
                 iconBgColor="bg-purple-600"
                 name={token.name}
                 currentPrice="$0.00"
@@ -227,8 +245,7 @@ const Home = () => {
                 ifCurrentValue="$0.00"
               />
             </div>
-          </Link>
-        ))}
+          ))}
       </div>
     </div>
   );
