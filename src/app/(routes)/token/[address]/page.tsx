@@ -27,6 +27,7 @@ interface Token {
   stats: TokenStats;
   about: string;
   hasActivePlan: boolean;
+  feeTier: number;
 }
 
 interface TokenApiResponse {
@@ -41,6 +42,7 @@ interface TokenApiResponse {
     wrappedName: string | null;
     wrappedSymbol: string | null;
     originalAddress: string | null;
+    feeTier: number;
     plansOut: Array<{
       id: string;
       planId: number;
@@ -51,7 +53,6 @@ interface TokenApiResponse {
       amountIn: string;
       approvalAmount: string;
       frequency: number;
-      feeTier: number;
       lastExecutedAt: number;
       active: boolean;
       createdAt: string;
@@ -102,6 +103,7 @@ const TokenPage = () => {
     },
     about: "",
     hasActivePlan: false,
+    feeTier: 3000,
   });
 
   const formatNumber = (num: number): string => {
@@ -155,6 +157,7 @@ const TokenPage = () => {
               },
               about: `Information about ${tokenData.name} (${tokenData.symbol}) token.`,
               hasActivePlan: tokenData.hasActivePlan,
+              feeTier: tokenData.feeTier,
             });
             await sdk.actions.ready({});
           }
@@ -364,6 +367,7 @@ const TokenPage = () => {
         }}
         tokenOut={tokenAddress as `0x${string}`}
         fid={context?.user?.fid}
+        feeTier={token.feeTier}
       />
       <TokenApprovalPopup
         open={showTokenApproval}

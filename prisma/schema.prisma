@@ -25,6 +25,7 @@ model Token {
   wrappedName     String?
   wrappedSymbol   String?
   originalAddress String?
+  feeTier         Int       @default(3000)
   plansIn         DCAPlan[] @relation("TokenIn")
   plansOut        DCAPlan[] @relation("TokenOut")
 }
@@ -42,7 +43,6 @@ model DCAPlan {
   amountIn       Decimal
   approvalAmount Decimal
   frequency      Int
-  feeTier        Int
   lastExecutedAt Int
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())

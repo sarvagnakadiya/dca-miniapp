@@ -11,7 +11,6 @@ export async function POST(req: Request) {
       amountIn,
       approvalAmount,
       frequency,
-      feeTier,
       fid,
       planId,
     } = await req.json();
@@ -25,7 +24,6 @@ export async function POST(req: Request) {
       amountIn,
       approvalAmount,
       frequency,
-      feeTier,
       fid,
       planId,
     };
@@ -88,7 +86,6 @@ export async function POST(req: Request) {
         approvalAmount,
         frequency,
         planId: Number(planId),
-        feeTier,
         lastExecutedAt: 0,
       },
       include: {
