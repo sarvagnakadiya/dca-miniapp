@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import PositionTile from "./ui/PositionTile";
 import { useFrame } from "~/components/providers/FrameProvider";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import sdk from "@farcaster/frame-sdk";
+import { BalanceDisplay } from "./ui/BalanceDisplay";
+import InvestedPositionTile from "./ui/InvestedPositionTile";
+import ExplorePositionTile from "./ui/ExplorePositionTile";
 
 interface Token {
   id: string;
@@ -12,6 +13,13 @@ interface Token {
   name: string;
   image: string;
   hasActivePlan: boolean;
+  currentPrice?: string;
+  startedAgo?: string;
+  investedAmount?: string;
+  currentValue?: string;
+  price1YAgo?: string;
+  ifInvestedAmount?: string;
+  ifCurrentValue?: string;
 }
 
 const Home = () => {
@@ -55,34 +63,19 @@ const Home = () => {
   // Show loading if SDK is not loaded yet
   if (!isSDKLoaded) {
     return (
-      <div className="min-h-screen bg-black text-white p-4 font-sans flex items-center justify-center">
+      <div className="min-h-screen bg-[#0C0C0C] text-white p-4 font-sans flex items-center justify-center">
         Loading...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 font-sans">
+    <div className="min-h-screen bg-[#0C0C0C] text-white p-4 font-sans">
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-xl font-medium">Home</h1>
         <div className="flex items-center space-x-3">
-          <div>{tokens.length}</div>
-          <div className="flex items-center space-x-1 text-sm">
-            <span className="text-gray-400">💰</span>
-            <span>$2,000</span>
-          </div>
-          {context?.user?.pfpUrl ? (
-            <Image
-              src={context.user.pfpUrl}
-              alt="Profile"
-              width={32}
-              height={32}
-              className="w-8 h-8 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-400 to-purple-500"></div>
-          )}
+          <BalanceDisplay />
         </div>
       </div>
 
@@ -230,14 +223,14 @@ const Home = () => {
                 className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
                 onClick={() => router.push(`/token/${token.address}`)}
               >
-                <PositionTile
+                <InvestedPositionTile
                   icon={token.image || token.symbol[0]}
                   iconBgColor="bg-orange-500"
                   name={token.name}
-                  currentPrice="$0.00"
-                  timeInfo="Just started"
-                  investedAmount="$0.00"
-                  currentValue="$0.00"
+                  currentPrice={token.currentPrice || "$0.00"}
+                  startedAgo={token.startedAgo || "Just started"}
+                  investedAmount={token.investedAmount || "$0.00"}
+                  currentValue={token.currentValue || "$0.00"}
                 />
               </div>
             ))
@@ -261,15 +254,14 @@ const Home = () => {
               className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
               onClick={() => router.push(`/token/${token.address}`)}
             >
-              <PositionTile
+              <ExplorePositionTile
                 icon={token.image}
                 iconBgColor="bg-purple-600"
                 name={token.name}
-                currentPrice="$0.00"
-                timeInfo="Just started"
-                isExplore={true}
-                ifInvestedAmount="$0.00"
-                ifCurrentValue="$0.00"
+                currentPrice={token.currentPrice || "$0.00"}
+                price1YAgo={token.price1YAgo || "$0.00"}
+                ifInvestedAmount={token.ifInvestedAmount || "$0.00"}
+                ifCurrentValue={token.ifCurrentValue || "$0.00"}
               />
             </div>
           ))}

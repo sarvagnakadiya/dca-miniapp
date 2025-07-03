@@ -43,9 +43,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // Find or create user
-    let user = await prisma.user.findUnique({
-      where: { wallet: userAddress },
+    // Find or create user - check by both wallet and fid to avoid conflicts
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [{ wallet: userAddress }, ...(fid ? [{ fid: Number(fid) }] : [])],
+      },
     });
 
     if (!user) {
@@ -55,6 +57,12 @@ export async function POST(req: Request) {
           wallet: userAddress,
           fid: fid ? Number(fid) : null,
         },
+      });
+    } else if (user.wallet !== userAddress) {
+      // If user exists but with different wallet, update the wallet
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { wallet: userAddress },
       });
     }
 

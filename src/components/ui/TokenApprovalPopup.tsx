@@ -120,15 +120,15 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
           value={amount}
           min={1}
           onChange={(e) => setAmount(Number(e.target.value))}
-          className="bg-gray-800 text-white border-none"
+          className="bg-[#333333] text-white border-2 border-[#333333] rounded-md"
         />
       </div>
       <div className="grid grid-cols-3 gap-3 mb-6">
         {quickAmounts.map((amt) => (
           <button
             key={amt}
-            className={`py-2 rounded-lg text-lg font-medium transition-colors bg-gray-800 text-white hover:bg-orange-500 hover:text-black ${
-              amount === amt ? "bg-orange-500 text-black" : ""
+            className={`py-2 rounded-2xl text-lg font-medium transition-colors bg-[#333333] text-white hover:bg-orange-500 hover:text-white ${
+              amount === amt ? "bg-orange-500 text-white" : ""
             }`}
             onClick={() => setAmount(amt)}
           >
@@ -141,7 +141,7 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
           Current allowance: {Number(currentAllowance) / 1000000} USDC
         </div>
       )}
-      <div className="mb-4 p-3 bg-gray-800 rounded-lg text-gray-300 text-sm">
+      <div className="mb-4 p-3 bg-[#333333] rounded-lg text-gray-300 text-sm">
         Set a spending limit for your DCA investments. When the limit is
         reached, you can easily top it up or revoke access anytime for complete
         control over your automated purchases.
