@@ -5,28 +5,91 @@ import sdk from "@farcaster/frame-sdk";
 import { BalanceDisplay } from "./ui/BalanceDisplay";
 import InvestedPositionTile from "./ui/InvestedPositionTile";
 import ExplorePositionTile from "./ui/ExplorePositionTile";
+import PositionTileSkeleton from "./ui/PositionTileSkeleton";
 
 interface Token {
   id: string;
   address: string;
   symbol: string;
   name: string;
+  about: string | null;
+  decimals: string;
   image: string;
+  isWrapped: boolean;
+  wrappedName: string;
+  wrappedSymbol: string;
+  originalAddress: string | null;
+  feeTier: number;
   hasActivePlan: boolean;
-  currentPrice?: string;
-  startedAgo?: string;
-  investedAmount?: string;
-  currentValue?: string;
-  price1YAgo?: string;
-  ifInvestedAmount?: string;
-  ifCurrentValue?: string;
+  planCreatedAt: string;
+  totalInvestedValue: number;
+  currentValue: number;
+  percentChange: number;
+  currentPrice: number;
 }
+
+interface PortfolioData {
+  portfolioCurrentValue: number;
+  portfolioInvestedAmount: number;
+  portfolioPercentChange: number;
+}
+
+// Utility function to format time ago
+const formatTimeAgo = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInMs = now.getTime() - date.getTime();
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+
+  if (diffInDays > 0) {
+    return `${diffInDays} day${diffInDays === 1 ? "" : "s"} ago`;
+  } else if (diffInHours > 0) {
+    return `${diffInHours} hour${diffInHours === 1 ? "" : "s"} ago`;
+  } else if (diffInMinutes > 0) {
+    return `${diffInMinutes} minute${diffInMinutes === 1 ? "" : "s"} ago`;
+  } else {
+    return "Just started";
+  }
+};
+
+// Utility function to format currency
+const formatCurrency = (value: number): string => {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
+// Utility function to format price
+const formatPrice = (price: number): string => {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(price);
+};
 
 const Home = () => {
   const [selectedPeriod, setSelectedPeriod] = useState("7D");
   const [tokens, setTokens] = useState<Token[]>([]);
+  const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(
+    null
+  );
+  const [isLoading, setIsLoading] = useState(true);
   const { context, isSDKLoaded } = useFrame();
   const router = useRouter();
+
+  // Use portfolio data from API if available, otherwise fallback to calculated value
+  const totalPortfolioBalance =
+    portfolioData?.portfolioCurrentValue ||
+    tokens
+      .filter((token) => token.hasActivePlan)
+      .reduce((sum, token) => sum + token.currentValue, 0);
 
   useEffect(() => {
     console.log("fetching tokens");
@@ -35,12 +98,14 @@ const Home = () => {
       if (!context?.user?.fid) return;
 
       try {
+        setIsLoading(true);
         const response = await fetch(
           `/api/plan/getUserPlans/${context.user.fid}`
         );
         const result = await response.json();
         if (result.success) {
           console.log("Fetched tokens:", result.data);
+          console.log("Portfolio data:", result.portfolio);
           console.log(
             "Tokens with active plans:",
             result.data.filter((token: Token) => token.hasActivePlan)
@@ -50,10 +115,13 @@ const Home = () => {
             result.data.filter((token: Token) => !token.hasActivePlan)
           );
           setTokens(result.data);
+          setPortfolioData(result.portfolio || null);
           await sdk.actions.ready({});
         }
       } catch (error) {
         console.error("Error fetching tokens:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -84,7 +152,32 @@ const Home = () => {
         <div className="flex justify-between items-center mb-4">
           <div>
             <div className="text-gray-400 text-sm mb-2">Portfolio balance</div>
-            <div className="text-4xl font-light">$3,234.43</div>
+            <div className="text-4xl font-light">
+              {formatCurrency(totalPortfolioBalance)}
+            </div>
+            {portfolioData && (
+              <div className="flex items-center space-x-4 mt-2 text-sm">
+                <div className="flex items-center space-x-1">
+                  <span className="text-gray-400">Invested:</span>
+                  <span className="text-white">
+                    {formatCurrency(portfolioData.portfolioInvestedAmount)}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span className="text-gray-400">Change:</span>
+                  <span
+                    className={
+                      portfolioData.portfolioPercentChange >= 0
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }
+                  >
+                    {portfolioData.portfolioPercentChange >= 0 ? "+" : ""}
+                    {portfolioData.portfolioPercentChange.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Time Period Selector */}
@@ -202,10 +295,10 @@ const Home = () => {
 
           {/* Y-axis labels */}
           <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-gray-500 -ml-12">
-            <span>$3100</span>
-            <span>$500</span>
-            <span>$200</span>
-            <span>$100</span>
+            <span>{formatCurrency(totalPortfolioBalance * 1.1)}</span>
+            <span>{formatCurrency(totalPortfolioBalance * 0.8)}</span>
+            <span>{formatCurrency(totalPortfolioBalance * 0.6)}</span>
+            <span>{formatCurrency(totalPortfolioBalance * 0.4)}</span>
           </div>
         </div>
       </div>
@@ -214,7 +307,14 @@ const Home = () => {
       <div className="mb-8">
         <h2 className="text-lg font-medium mb-4">DCA Positions</h2>
 
-        {tokens.filter((token) => token.hasActivePlan).length > 0 ? (
+        {isLoading ? (
+          // Show skeleton loading while fetching data
+          <>
+            <PositionTileSkeleton />
+            <PositionTileSkeleton />
+            <PositionTileSkeleton />
+          </>
+        ) : tokens.filter((token) => token.hasActivePlan).length > 0 ? (
           tokens
             .filter((token) => token.hasActivePlan)
             .map((token) => (
@@ -227,10 +327,10 @@ const Home = () => {
                   icon={token.image || token.symbol[0]}
                   iconBgColor="bg-orange-500"
                   name={token.name}
-                  currentPrice={token.currentPrice || "$0.00"}
-                  startedAgo={token.startedAgo || "Just started"}
-                  investedAmount={token.investedAmount || "$0.00"}
-                  currentValue={token.currentValue || "$0.00"}
+                  currentPrice={formatPrice(token.currentPrice)}
+                  startedAgo={formatTimeAgo(token.planCreatedAt)}
+                  investedAmount={formatCurrency(token.totalInvestedValue)}
+                  currentValue={formatCurrency(token.currentValue)}
                 />
               </div>
             ))
@@ -246,25 +346,37 @@ const Home = () => {
       <div>
         <h2 className="text-lg font-medium mb-4">Explore more tokens</h2>
 
-        {tokens
-          .filter((token) => !token.hasActivePlan)
-          .map((token) => (
-            <div
-              key={token.id}
-              className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
-              onClick={() => router.push(`/token/${token.address}`)}
-            >
-              <ExplorePositionTile
-                icon={token.image}
-                iconBgColor="bg-purple-600"
-                name={token.name}
-                currentPrice={token.currentPrice || "$0.00"}
-                price1YAgo={token.price1YAgo || "$0.00"}
-                ifInvestedAmount={token.ifInvestedAmount || "$0.00"}
-                ifCurrentValue={token.ifCurrentValue || "$0.00"}
-              />
-            </div>
-          ))}
+        {isLoading ? (
+          // Show skeleton loading while fetching data
+          <>
+            <PositionTileSkeleton />
+            <PositionTileSkeleton />
+            <PositionTileSkeleton />
+            <PositionTileSkeleton />
+          </>
+        ) : (
+          tokens
+            .filter((token) => !token.hasActivePlan)
+            .map((token) => (
+              <div
+                key={token.id}
+                className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
+                onClick={() => router.push(`/token/${token.address}`)}
+              >
+                <ExplorePositionTile
+                  icon={token.image}
+                  iconBgColor="bg-purple-600"
+                  name={token.name}
+                  currentPrice={formatPrice(token.currentPrice)}
+                  price1YAgo={formatPrice(token.currentPrice * 0.8)} // Placeholder - you might want to add this to your API
+                  ifInvestedAmount={formatCurrency(1000)} // Placeholder - you might want to add this to your API
+                  ifCurrentValue={formatCurrency(
+                    1000 * (1 + token.percentChange / 100)
+                  )} // Calculate based on percent change
+                />
+              </div>
+            ))
+        )}
       </div>
     </div>
   );

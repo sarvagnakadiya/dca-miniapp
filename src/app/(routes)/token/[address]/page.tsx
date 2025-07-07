@@ -14,6 +14,7 @@ interface TokenStats {
   oneYearAgo: number;
   invested: number;
   currentValue: number;
+  percentChange: number;
   marketCap: number;
   fdv: number;
   circSupply: number;
@@ -25,6 +26,7 @@ interface Token {
   icon: string;
   price: number;
   symbol: string;
+  decimals: number;
   stats: TokenStats;
   about: string;
   hasActivePlan: boolean;
@@ -73,6 +75,11 @@ interface TokenApiResponse {
       h24: string;
     };
     hasActivePlan: boolean;
+    about?: string;
+    totalInvestedValue: number;
+    currentValue: number;
+    percentChange: number;
+    currentPrice: number;
   };
 }
 
@@ -97,10 +104,12 @@ const TokenPage = () => {
     icon: "",
     price: 0,
     symbol: "",
+    decimals: 0,
     stats: {
       oneYearAgo: 0,
       invested: 0,
       currentValue: 0,
+      percentChange: 0,
       marketCap: 0,
       fdv: 0,
       circSupply: 0,
@@ -145,22 +154,30 @@ const TokenPage = () => {
 
           if (result.success) {
             const tokenData = result.data;
-            console.log(tokenData);
+            console.log("Token data:", tokenData);
+            console.log("hasActivePlan:", tokenData.hasActivePlan);
+            console.log("plansOut:", tokenData.plansOut);
+            console.log("plansOut length:", tokenData.plansOut?.length);
             setToken({
               name: tokenData.name,
               icon: tokenData.image_url || "₿", // Fallback to Bitcoin symbol if no image
               price: parseFloat(tokenData.price_usd) || 0,
               symbol: tokenData.symbol,
+              decimals: tokenData.decimals,
               stats: {
                 oneYearAgo: 0, // This data is not available in the API response
-                invested: 100, // This is a static value
-                currentValue: 1380, // This is a static value
+                invested: tokenData.totalInvestedValue || 0,
+                currentValue: tokenData.currentValue || 0,
+                percentChange: tokenData.percentChange || 0,
                 marketCap: parseFloat(tokenData.total_reserve_in_usd) || 0,
                 fdv: parseFloat(tokenData.fdv_usd) || 0,
                 circSupply: parseFloat(tokenData.normalized_total_supply) || 0,
                 totalSupply: parseFloat(tokenData.normalized_total_supply) || 0,
               },
-              about: `Information about ${tokenData.name} (${tokenData.symbol}) token.`,
+              // about: `Information about ${tokenData.name} (${tokenData.symbol}) token.`,
+              about:
+                tokenData?.about ||
+                `Information about ${tokenData.name} (${tokenData.symbol}) token.`,
               hasActivePlan: tokenData.hasActivePlan,
               feeTier: tokenData.feeTier,
             });
@@ -279,28 +296,42 @@ const TokenPage = () => {
       {/* Stats Section */}
       <div className="bg-[#131313] rounded-xl p-6 mb-6">
         <div className="text-lg font-medium mb-4">Stats</div>
-        <div className="bg-[#1E1E1F] rounded-lg p-4 mb-4">
-          <div className="flex justify-between items-center mb-2">
-            <div className="text-white text-sm">1 years ago price</div>
-            <div className="text-white text-lg">
-              ${formatNumber(token.stats.oneYearAgo)}
-            </div>
-          </div>
-          <div className="flex justify-between items-center mt-2">
-            <div>
-              <div className="text-white text-sm">If you invested</div>
-              <div className="text-white text-xl font-medium">
-                ${formatNumber(token.stats.invested)}
+        {token.hasActivePlan && token.stats.invested > 0 ? (
+          <div className="bg-[#1E1E1F] rounded-lg p-4 mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <div>
+                <div className="text-white text-sm">Total invested</div>
+                <div className="text-white text-xl font-medium">
+                  ${token.stats.invested.toFixed(1)}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="flex items-center justify-end gap-2 mb-1">
+                  <div
+                    className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      token.stats.percentChange >= 0
+                        ? "bg-green-400/20 text-green-400"
+                        : "bg-red-400/20 text-red-400"
+                    }`}
+                  >
+                    {token.stats.percentChange >= 0 ? "+" : ""}
+                    {token.stats.percentChange.toFixed(2)}%
+                  </div>
+                  <div className="text-white text-sm">Current value</div>
+                </div>
+                <div
+                  className={`text-xl font-medium ${
+                    token.stats.percentChange >= 0
+                      ? "text-green-400"
+                      : "text-red-400"
+                  }`}
+                >
+                  ${token.stats.currentValue.toFixed(1)}
+                </div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-white text-sm">Current value</div>
-              <div className="text-green-400 text-xl font-medium">
-                ${formatNumber(token.stats.currentValue)}
-              </div>
-            </div>
           </div>
-        </div>
+        ) : null}
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex flex-col">
             <span className="text-white">Market cap</span>

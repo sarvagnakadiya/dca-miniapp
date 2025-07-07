@@ -69,32 +69,6 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
       console.log("Approval transaction hash:", hash);
 
       // Update the approval amount in the database if we have the required data
-      if (tokenOutAddress && fid) {
-        try {
-          const response = await fetch("/api/plan/updateApprovalAmount", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              userAddress: address,
-              tokenOutAddress,
-              approvalAmount: amountInWei.toString(),
-              fid,
-            }),
-          });
-
-          const data = await response.json();
-
-          if (!data.success) {
-            console.error("Failed to update approval amount:", data.error);
-          } else {
-            console.log("Approval amount updated successfully:", data);
-          }
-        } catch (error) {
-          console.error("Error updating approval amount:", error);
-        }
-      }
 
       // Call the onApprove callback with the amount
       onApprove(amount);
