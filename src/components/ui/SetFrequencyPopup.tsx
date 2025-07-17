@@ -7,7 +7,7 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
-import { DCA_ABI } from "~/lib/contracts/abi";
+import DCA_ABI from "~/lib/contracts/DCAForwarder.json";
 import { base } from "viem/chains";
 import { waitForTransactionReceipt } from "viem/actions";
 import { createPublicClient, http } from "viem";
@@ -24,7 +24,7 @@ interface SetFrequencyPopupProps {
   editMode?: boolean;
 }
 
-const USDC_ADDRESS = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
 const quickAmounts = [5, 10, 50, 100, 500, 1000];
 
 // Create a public client for waiting for transaction receipt
@@ -50,7 +50,8 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>();
   const [amountError, setAmountError] = useState(false);
   const { address } = useAccount();
-  const DCA_EXECUTOR_ADDRESS = "0x44E567a0C93F49E503900894ECc508153e6FB77c";
+  const DCA_EXECUTOR_ADDRESS = process.env
+    .NEXT_PUBLIC_DCA_EXECUTOR_ADDRESS as `0x${string}`;
 
   const {
     writeContractAsync: createPlan,
@@ -157,7 +158,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         return;
       }
 
-      // Create new plan (existing logic)
+      // Create new plan
       console.log("Creating plan...");
       console.log("USDC_ADDRESS", USDC_ADDRESS);
       console.log("tokenOut", tokenOut);
@@ -166,34 +167,21 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
 
       const hash = await createPlan({
         address: DCA_EXECUTOR_ADDRESS as `0x${string}`,
-        abi: DCA_ABI,
+        abi: DCA_ABI.abi,
         functionName: "createPlan",
-        args: [USDC_ADDRESS, tokenOut, address],
+        args: [tokenOut, address],
       });
 
       console.log("Txn hash:", hash);
       setTxHash(hash);
 
+      // Wait for transaction confirmation
       const receipt = await waitForTransactionReceipt(publicClient, {
         hash: hash,
       });
       console.log("Receipt received:", receipt);
 
-      const planCreatedEvent = receipt.logs.find(
-        (log) =>
-          log.address.toLowerCase() === DCA_EXECUTOR_ADDRESS.toLowerCase() &&
-          log.topics[0] ===
-            "0x96a20ecfde31e96fea1bd76dd04311297b8590465d3f75c15b07c059ea43e9b5"
-      );
-
-      if (!planCreatedEvent) throw new Error("PlanCreated event not found");
-
-      const planIdHex = planCreatedEvent.topics[2];
-      const planId = parseInt(planIdHex as `0x${string}`, 16);
-
-      console.log("PlanId:", planId);
-
-      // Call API with the extracted planId
+      // Call API to create plan in database (planHash will be generated offchain)
       const response = await fetch("/api/plan/createPlan", {
         method: "POST",
         headers: {
@@ -201,15 +189,11 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         },
         body: JSON.stringify({
           userAddress: address,
-          tokenInAddress: USDC_ADDRESS,
           tokenOutAddress: tokenOut,
           recipient: address,
           amountIn: amount * 1000000, // Convert to wei for USDC (6 decimals)
-          approvalAmount: 0,
           frequency: getDurationInSeconds(frequency),
-          feeTier: feeTier, // Use feeTier from props
           fid: fid,
-          planId: planId,
         }),
       });
 
@@ -219,12 +203,9 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         throw new Error(data.error || "Failed to create plan in database");
       }
 
-      console.log("Plan created successfully with planId:", planId);
+      console.log("Plan created successfully");
       onConfirm(amount, frequency);
       setIsLoading(false);
-
-      // Wait for transaction confirmation and extract planId
-      // The planId will be extracted in the useEffect below when receipt is available
     } catch (error) {
       console.error("Error creating plan:", error);
       setIsLoading(false);

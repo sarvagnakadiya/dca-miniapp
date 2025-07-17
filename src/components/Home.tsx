@@ -35,7 +35,9 @@ interface PortfolioData {
 }
 
 // Utility function to format time ago
-const formatTimeAgo = (dateString: string): string => {
+const formatTimeAgo = (dateString: string | null): string => {
+  if (!dateString) return "Just started";
+
   const date = new Date(dateString);
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();
@@ -56,6 +58,9 @@ const formatTimeAgo = (dateString: string): string => {
 
 // Utility function to format currency
 const formatCurrency = (value: number): string => {
+  if (isNaN(value) || !isFinite(value)) {
+    return "$0.00";
+  }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -66,6 +71,9 @@ const formatCurrency = (value: number): string => {
 
 // Utility function to format price
 const formatPrice = (price: number): string => {
+  if (isNaN(price) || !isFinite(price)) {
+    return "$0.00";
+  }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -89,7 +97,7 @@ const Home = () => {
     portfolioData?.portfolioCurrentValue ||
     tokens
       .filter((token) => token.hasActivePlan)
-      .reduce((sum, token) => sum + token.currentValue, 0);
+      .reduce((sum, token) => sum + (token.currentValue || 0), 0);
 
   useEffect(() => {
     console.log("fetching tokens");
@@ -98,11 +106,20 @@ const Home = () => {
       if (!context?.user?.fid) return;
 
       try {
+        console.log("Fetching data...");
         setIsLoading(true);
+        console.log("Fetching data for FID:", context.user.fid);
         const response = await fetch(
           `/api/plan/getUserPlans/${context.user.fid}`
         );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         const result = await response.json();
+        console.log("API response:", result);
+
         if (result.success) {
           console.log("Fetched tokens:", result.data);
           console.log("Portfolio data:", result.portfolio);
@@ -117,6 +134,8 @@ const Home = () => {
           setTokens(result.data);
           setPortfolioData(result.portfolio || null);
           await sdk.actions.ready({});
+        } else {
+          console.error("API returned error:", result.error);
         }
       } catch (error) {
         console.error("Error fetching tokens:", error);
@@ -319,12 +338,12 @@ const Home = () => {
             .filter((token) => token.hasActivePlan)
             .map((token) => (
               <div
-                key={token.id}
+                key={token.id || token.address}
                 className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
                 onClick={() => router.push(`/token/${token.address}`)}
               >
                 <InvestedPositionTile
-                  icon={token.image || token.symbol[0]}
+                  icon={token.image || token.symbol?.[0] || "₿"}
                   iconBgColor="bg-orange-500"
                   name={token.name}
                   currentPrice={formatPrice(token.currentPrice)}
@@ -359,12 +378,12 @@ const Home = () => {
             .filter((token) => !token.hasActivePlan)
             .map((token) => (
               <div
-                key={token.id}
+                key={token.id || token.address}
                 className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
                 onClick={() => router.push(`/token/${token.address}`)}
               >
                 <ExplorePositionTile
-                  icon={token.image}
+                  icon={token.image || token.symbol?.[0] || "₿"}
                   iconBgColor="bg-purple-600"
                   name={token.name}
                   currentPrice={formatPrice(token.currentPrice)}
