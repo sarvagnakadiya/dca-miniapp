@@ -409,7 +409,7 @@ const Home = () => {
               >
                 <ExplorePositionTile
                   icon={token.image || token.symbol?.[0] || "₿"}
-                  iconBgColor="bg-purple-600"
+                  iconBgColor="bg-orange-600"
                   name={token.name}
                   currentPrice={formatPrice(token.currentPrice)}
                   marketCap={formatLargeNumber(token.marketCapUsd)}
