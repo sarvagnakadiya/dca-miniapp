@@ -111,9 +111,11 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
           </button>
         ))}
       </div>
-      {currentAllowance && currentAllowance > 0n && (
+      {currentAllowance !== undefined && (
         <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg text-blue-300 text-sm">
-          Current allowance: {Number(currentAllowance) / 1000000} USDC
+          Current allowance:{" "}
+          {currentAllowance === 0n ? "0" : Number(currentAllowance) / 1000000}{" "}
+          USDC
         </div>
       )}
       <div className="mb-4 p-3 bg-[#333333] rounded-lg text-gray-300 text-sm">

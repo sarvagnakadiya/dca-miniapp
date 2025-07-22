@@ -148,28 +148,39 @@ export async function GET(
         let percentChange = 0;
         let currentPrice = 0;
 
-        // Get current token price for all tokens
+        // Get current token price and additional metrics for all tokens
+        let fdvUsd = 0;
+        let totalReserveInUsd = 0;
+        let volume24h = 0;
+        let marketCapUsd = 0;
+
         try {
           const response = await axios.get(
             `https://api.geckoterminal.com/api/v2/networks/base/tokens/${token.address}`,
             { timeout: 5000 } // Add timeout to prevent hanging requests
           );
 
-          if (response.data?.data?.attributes?.price_usd) {
-            currentPrice =
-              parseFloat(response.data.data.attributes.price_usd) || 0;
-            console.log(`Price for ${token.symbol}: $${currentPrice}`);
+          if (response.data?.data?.attributes) {
+            const attributes = response.data.data.attributes;
+            currentPrice = parseFloat(attributes.price_usd) || 0;
+            fdvUsd = parseFloat(attributes.fdv_usd) || 0;
+            totalReserveInUsd =
+              parseFloat(attributes.total_reserve_in_usd) || 0;
+            volume24h = parseFloat(attributes.volume_usd?.h24) || 0;
+            marketCapUsd = parseFloat(attributes.market_cap_usd) || 0;
+
+            console.log(
+              `Metrics for ${token.symbol}: Price: $${currentPrice}, FDV: $${fdvUsd}, Volume: $${volume24h}`
+            );
           } else {
-            console.log(`No price data for ${token.symbol}`);
+            console.log(`No data for ${token.symbol}`);
             currentPrice = 0;
           }
         } catch (error) {
           console.error(
-            `Failed to fetch price for token ${token.address} (${token.symbol}):`,
+            `Failed to fetch data for token ${token.address} (${token.symbol}):`,
             error
           );
-          // If price fetch fails and we have executions, we can't use last execution price as fallback
-          // since we don't have priceAtTx in the new schema
           currentPrice = 0;
         }
 
@@ -226,6 +237,10 @@ export async function GET(
           currentValue,
           percentChange,
           currentPrice,
+          fdvUsd,
+          totalReserveInUsd,
+          volume24h,
+          marketCapUsd,
         };
       })
     );

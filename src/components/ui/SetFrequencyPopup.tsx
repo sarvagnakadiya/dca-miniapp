@@ -80,19 +80,18 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
     console.log("Debug - receipt:", receipt);
   }, [txHash, isConfirmed, isConfirming, receipt]);
 
-  const getDurationInSeconds = (frequency: string): number => {
-    const now = Math.floor(Date.now() / 1000);
+  const getFrequencyInSeconds = (frequency: string): number => {
     switch (frequency) {
       case "Hourly":
-        return now + 3600; // 1 hour
+        return 3600; // 1 hour
       case "Daily":
-        return now + 86400; // 24 hours
+        return 86400; // 24 hours
       case "Weekly":
-        return now + 604800; // 7 days
+        return 604800; // 7 days
       case "Monthly":
-        return now + 2592000; // 30 days
+        return 2592000; // 30 days
       default:
-        return now + 86400; // Default to daily
+        return 86400; // Default to daily
     }
   };
 
@@ -192,7 +191,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
           tokenOutAddress: tokenOut,
           recipient: address,
           amountIn: amount * 1000000, // Convert to wei for USDC (6 decimals)
-          frequency: getDurationInSeconds(frequency),
+          frequency: getFrequencyInSeconds(frequency),
           fid: fid,
         }),
       });

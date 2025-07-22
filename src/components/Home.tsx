@@ -26,6 +26,10 @@ interface Token {
   currentValue: number;
   percentChange: number;
   currentPrice: number;
+  fdvUsd: number;
+  totalReserveInUsd: number;
+  volume24h: number;
+  marketCapUsd: number;
 }
 
 interface PortfolioData {
@@ -58,8 +62,8 @@ const formatTimeAgo = (dateString: string | null): string => {
 
 // Utility function to format currency
 const formatCurrency = (value: number): string => {
-  if (isNaN(value) || !isFinite(value)) {
-    return "$0.00";
+  if (isNaN(value) || !isFinite(value) || value === 0) {
+    return "NA";
   }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -71,8 +75,8 @@ const formatCurrency = (value: number): string => {
 
 // Utility function to format price
 const formatPrice = (price: number): string => {
-  if (isNaN(price) || !isFinite(price)) {
-    return "$0.00";
+  if (isNaN(price) || !isFinite(price) || price === 0) {
+    return "NA";
   }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -80,6 +84,28 @@ const formatPrice = (price: number): string => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(price);
+};
+
+// Utility function to format large numbers (market cap, volume, FDV)
+const formatLargeNumber = (value: number): string => {
+  if (isNaN(value) || !isFinite(value) || value === 0) {
+    return "NA";
+  }
+
+  if (value >= 1e9) {
+    return `$${(value / 1e9).toFixed(1)}B`;
+  } else if (value >= 1e6) {
+    return `$${(value / 1e6).toFixed(1)}M`;
+  } else if (value >= 1e3) {
+    return `$${(value / 1e3).toFixed(1)}K`;
+  } else {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
 };
 
 const Home = () => {
@@ -244,7 +270,8 @@ const Home = () => {
           </div>
         </div>
 
-        {/* Chart */}
+        {/* Chart - Commented out as we don't have dynamic data yet */}
+        {/* 
         <div className="relative h-32 mb-8">
           <svg className="w-full h-full" viewBox="0 0 400 120">
             <defs>
@@ -260,7 +287,6 @@ const Home = () => {
               </linearGradient>
             </defs>
 
-            {/* Grid lines */}
             <line
               x1="0"
               y1="20"
@@ -302,7 +328,6 @@ const Home = () => {
               strokeWidth="0.5"
             />
 
-            {/* Chart path */}
             <path
               d="M 0 80 Q 80 75 120 70 T 200 65 Q 280 60 320 55 T 400 45"
               fill="url(#chartGradient)"
@@ -312,7 +337,6 @@ const Home = () => {
             />
           </svg>
 
-          {/* Y-axis labels */}
           <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-gray-500 -ml-12">
             <span>{formatCurrency(totalPortfolioBalance * 1.1)}</span>
             <span>{formatCurrency(totalPortfolioBalance * 0.8)}</span>
@@ -320,6 +344,7 @@ const Home = () => {
             <span>{formatCurrency(totalPortfolioBalance * 0.4)}</span>
           </div>
         </div>
+        */}
       </div>
 
       {/* DCA Positions */}
@@ -387,11 +412,9 @@ const Home = () => {
                   iconBgColor="bg-purple-600"
                   name={token.name}
                   currentPrice={formatPrice(token.currentPrice)}
-                  price1YAgo={formatPrice(token.currentPrice * 0.8)} // Placeholder - you might want to add this to your API
-                  ifInvestedAmount={formatCurrency(1000)} // Placeholder - you might want to add this to your API
-                  ifCurrentValue={formatCurrency(
-                    1000 * (1 + token.percentChange / 100)
-                  )} // Calculate based on percent change
+                  marketCap={formatLargeNumber(token.marketCapUsd)}
+                  volume24h={formatLargeNumber(token.volume24h)}
+                  fdv={formatLargeNumber(token.fdvUsd)}
                 />
               </div>
             ))
