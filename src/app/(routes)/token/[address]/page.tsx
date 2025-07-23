@@ -528,8 +528,8 @@ const TokenPage = () => {
               <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
                 <div className="text-red-400 text-sm mb-2">Danger Zone</div>
                 <div className="text-gray-300 text-sm mb-3">
-                  This will permanently stop your DCA position. You'll keep any
-                  tokens you've already purchased.
+                  This will permanently stop your DCA position. You&apos;ll keep
+                  any tokens you&apos;ve already purchased.
                 </div>
                 <Button
                   className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 px-4 rounded-lg w-full disabled:bg-gray-600 disabled:text-white"

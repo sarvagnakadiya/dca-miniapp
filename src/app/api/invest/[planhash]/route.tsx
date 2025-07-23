@@ -4,7 +4,7 @@ import { ethers } from "ethers";
 
 const prisma = new PrismaClient();
 
-const DCA_EXECUTOR_ADDRESS = process.env.DCA_EXECUTOR_ADDRESS;
+const DCA_EXECUTOR_ADDRESS = process.env.NEXT_PUBLIC_DCA_EXECUTOR_ADDRESS;
 const RPC_URL = process.env.RPC_URL;
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const ONEINCH_API_KEY = process.env.ONEINCH_API_KEY;
@@ -137,7 +137,13 @@ async function checkTokenAllowance(
 }
 
 // Function to parse SwapExecuted event from transaction logs
-function parseSwapExecutedEvent(receipt: any): {
+function parseSwapExecutedEvent(receipt: {
+  logs?: Array<{
+    address: string;
+    topics: string[];
+    data: string;
+  }>;
+}): {
   amountOut: string;
   feeAmount: string;
   amountIn: string;
@@ -153,7 +159,7 @@ function parseSwapExecutedEvent(receipt: any): {
 
     // Find the SwapExecuted event log
     const swapExecutedEvent = receipt.logs.find(
-      (log: any) =>
+      (log) =>
         log.address.toLowerCase() === DCA_EXECUTOR_ADDRESS!.toLowerCase() &&
         log.topics[0] === eventTopic
     );
