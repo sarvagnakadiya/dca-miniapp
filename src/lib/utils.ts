@@ -172,3 +172,30 @@ export const walletClient =
         transport: custom(window.ethereum),
       })
     : null;
+
+export async function executeInitialInvestment(
+  planHash: string
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const response = await fetch(`/api/invest/${planHash}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      return {
+        success: false,
+        error: data.error || "Failed to execute initial investment",
+      };
+    }
+
+    return { success: true, txHash: data.txHash };
+  } catch (error) {
+    console.error("Error executing initial investment:", error);
+    return { success: false, error: "Network error occurred" };
+  }
+}

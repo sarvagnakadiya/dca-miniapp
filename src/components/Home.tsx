@@ -226,7 +226,7 @@ const Home = () => {
           </div>
 
           {/* Time Period Selector */}
-          <div className="flex space-x-4 text-sm">
+          {/* <div className="flex space-x-4 text-sm">
             <button
               onClick={() => setSelectedPeriod("7D")}
               className={`pb-1 ${
@@ -267,7 +267,7 @@ const Home = () => {
             >
               5Y
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Chart - Commented out as we don't have dynamic data yet */}

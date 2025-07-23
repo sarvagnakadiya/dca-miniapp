@@ -6,16 +6,19 @@ import {
   useAccount,
   useWriteContract,
   useWaitForTransactionReceipt,
+  useReadContract,
 } from "wagmi";
 import DCA_ABI from "~/lib/contracts/DCAForwarder.json";
+import { USDC_ABI } from "~/lib/contracts/abi";
 import { base } from "viem/chains";
 import { waitForTransactionReceipt } from "viem/actions";
 import { createPublicClient, http } from "viem";
+import { executeInitialInvestment } from "~/lib/utils";
 
 interface SetFrequencyPopupProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (amount: number, frequency: string) => void;
+  onConfirm: (amount: number, frequency: string, planHash?: string) => void;
   tokenOut: `0x${string}`;
   fid?: number;
   feeTier: number;
@@ -52,6 +55,18 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
   const { address } = useAccount();
   const DCA_EXECUTOR_ADDRESS = process.env
     .NEXT_PUBLIC_DCA_EXECUTOR_ADDRESS as `0x${string}`;
+  const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
+
+  // Check current USDC allowance
+  const { data: currentAllowance } = useReadContract({
+    address: USDC_ADDRESS,
+    abi: USDC_ABI,
+    functionName: "allowance",
+    args: [address as `0x${string}`, DCA_EXECUTOR_ADDRESS],
+    query: {
+      enabled: !!address,
+    },
+  });
 
   const {
     writeContractAsync: createPlan,
@@ -97,7 +112,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
 
   const handleConfirm = async () => {
     if (!address) return;
-    if (!amount || amount === 0) {
+    if (!amount || amount <= 0) {
       setAmountError(true);
       return;
     }
@@ -203,7 +218,32 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
       }
 
       console.log("Plan created successfully");
-      onConfirm(amount, frequency);
+
+      // Execute initial investment if user has sufficient allowance
+      const requiredAmount = BigInt(amount * 1000000); // Convert to USDC decimals
+      if (currentAllowance && currentAllowance >= requiredAmount) {
+        console.log("Executing initial investment...");
+        const investResult = await executeInitialInvestment(data.data.planHash);
+
+        if (investResult.success) {
+          console.log(
+            "Initial investment executed successfully:",
+            investResult.txHash
+          );
+        } else {
+          console.error(
+            "Failed to execute initial investment:",
+            investResult.error
+          );
+          // Still call onConfirm since plan was created successfully
+        }
+      } else {
+        console.log(
+          "Insufficient allowance for initial investment. User needs to approve more USDC."
+        );
+      }
+
+      onConfirm(amount, frequency, data.data.planHash);
       setIsLoading(false);
     } catch (error) {
       console.error("Error creating plan:", error);
@@ -223,8 +263,9 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         <label className="block text-gray-400 mb-1">Amount</label>
         <Input
           type="number"
-          value={amount === 0 ? (amountError ? "" : "0") : amount}
-          min={1}
+          value={amount === 0 ? (amountError ? "" : "0") : amount.toString()}
+          min={0.01}
+          step={0.01}
           onChange={(e) => {
             const val = e.target.value;
             if (val === "") {
@@ -233,7 +274,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
             } else {
               const num = Number(val);
               setAmount(num);
-              setAmountError(num === 0);
+              setAmountError(num <= 0);
             }
           }}
           className={`bg-[#333333] text-white border-2 rounded-md ${

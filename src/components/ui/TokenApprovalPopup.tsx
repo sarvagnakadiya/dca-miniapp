@@ -4,6 +4,7 @@ import { Button } from "./Button";
 import { Input } from "./input";
 import { useAccount, useWriteContract, useReadContract } from "wagmi";
 import { USDC_ABI } from "~/lib/contracts/abi";
+import { executeInitialInvestment } from "~/lib/utils";
 
 interface TokenApprovalPopupProps {
   open: boolean;
@@ -13,6 +14,7 @@ interface TokenApprovalPopupProps {
   defaultAmount?: number;
   tokenOutAddress?: `0x${string}`;
   fid?: number;
+  planHash?: string; // Add planHash for initial investment execution
 }
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
@@ -28,6 +30,7 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
   defaultAmount = 100,
   tokenOutAddress,
   fid,
+  planHash,
 }) => {
   const [amount, setAmount] = useState(defaultAmount);
   const [isLoading, setIsLoading] = useState(false);
@@ -69,7 +72,23 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
 
       console.log("Approval transaction hash:", hash);
 
-      // Update the approval amount in the database if we have the required data
+      // Execute initial investment if we have a planHash (indicating this is for a new plan)
+      if (planHash) {
+        console.log("Executing initial investment after approval...");
+        const investResult = await executeInitialInvestment(planHash);
+
+        if (investResult.success) {
+          console.log(
+            "Initial investment executed successfully:",
+            investResult.txHash
+          );
+        } else {
+          console.error(
+            "Failed to execute initial investment:",
+            investResult.error
+          );
+        }
+      }
 
       // Call the onApprove callback with the amount
       onApprove(amount);
@@ -92,8 +111,9 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
         <label className="block text-gray-400 mb-1">Amount</label>
         <Input
           type="number"
-          value={amount}
-          min={1}
+          value={amount.toString()}
+          min={0.01}
+          step={0.01}
           onChange={(e) => setAmount(Number(e.target.value))}
           className="bg-[#333333] text-white border-2 border-[#333333] rounded-md"
         />
