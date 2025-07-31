@@ -515,7 +515,12 @@ const TokenPage = () => {
                     case 2592000:
                       return "Monthly";
                     default:
-                      return `${activePlan.frequency / 3600}h`;
+                      // Handle minute-based frequencies
+                      if (activePlan.frequency < 3600) {
+                        return `${activePlan.frequency / 60} minutes`;
+                      } else {
+                        return `${activePlan.frequency / 3600}h`;
+                      }
                   }
                 })()}
               </span>
@@ -681,7 +686,12 @@ const TokenPage = () => {
             case 2592000:
               return "Monthly";
             default:
-              return "Daily";
+              // Handle minute-based frequencies
+              if (activePlan.frequency < 3600) {
+                return `${activePlan.frequency / 60} minutes`;
+              } else {
+                return "Daily"; // fallback for unknown frequencies
+              }
           }
         })()}
         editMode={true}

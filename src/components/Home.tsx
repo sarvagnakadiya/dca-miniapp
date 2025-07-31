@@ -115,7 +115,7 @@ const Home = () => {
     null
   );
   const [isLoading, setIsLoading] = useState(true);
-  const { context, isSDKLoaded } = useFrame();
+  const { context, isSDKLoaded, addFrame, added } = useFrame();
   const router = useRouter();
 
   // Use portfolio data from API if available, otherwise fallback to calculated value
@@ -128,6 +128,12 @@ const Home = () => {
   useEffect(() => {
     console.log("fetching tokens");
     console.log("context:::", context);
+
+    // Automatically prompt to add frame to client if not already added
+    if (context && !added) {
+      addFrame();
+    }
+
     const fetchTokens = async () => {
       if (!context?.user?.fid) return;
 
@@ -171,7 +177,7 @@ const Home = () => {
     };
 
     fetchTokens();
-  }, [context]);
+  }, [context, addFrame, added]);
 
   // Show loading if SDK is not loaded yet
   if (!isSDKLoaded) {
@@ -226,48 +232,7 @@ const Home = () => {
           </div>
 
           {/* Time Period Selector */}
-          {/* <div className="flex space-x-4 text-sm">
-            <button
-              onClick={() => setSelectedPeriod("7D")}
-              className={`pb-1 ${
-                selectedPeriod === "7D"
-                  ? "text-orange-400 border-b border-orange-400"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              7D
-            </button>
-            <button
-              onClick={() => setSelectedPeriod("1M")}
-              className={`pb-1 ${
-                selectedPeriod === "1M"
-                  ? "text-orange-400 border-b border-orange-400"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              1M
-            </button>
-            <button
-              onClick={() => setSelectedPeriod("1Y")}
-              className={`pb-1 ${
-                selectedPeriod === "1Y"
-                  ? "text-orange-400 border-b border-orange-400"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              1Y
-            </button>
-            <button
-              onClick={() => setSelectedPeriod("5Y")}
-              className={`pb-1 ${
-                selectedPeriod === "5Y"
-                  ? "text-orange-400 border-b border-orange-400"
-                  : "text-gray-400 hover:text-white"
-              }`}
-            >
-              5Y
-            </button>
-          </div> */}
+          {/* , */}
         </div>
 
         {/* Chart - Commented out as we don't have dynamic data yet */}

@@ -97,6 +97,14 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
 
   const getFrequencyInSeconds = (frequency: string): number => {
     switch (frequency) {
+      case "5 Minutes":
+        return 300; // 5 minutes
+      case "10 Minutes":
+        return 600; // 10 minutes
+      case "15 Minutes":
+        return 900; // 15 minutes
+      case "30 Minutes":
+        return 1800; // 30 minutes
       case "Hourly":
         return 3600; // 1 hour
       case "Daily":
@@ -124,23 +132,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         // Update existing plan
         console.log("Updating plan frequency...");
 
-        let freqSeconds = 86400;
-        switch (frequency) {
-          case "Hourly":
-            freqSeconds = 3600;
-            break;
-          case "Daily":
-            freqSeconds = 86400;
-            break;
-          case "Weekly":
-            freqSeconds = 604800;
-            break;
-          case "Monthly":
-            freqSeconds = 2592000;
-            break;
-          default:
-            freqSeconds = 86400;
-        }
+        const freqSeconds = getFrequencyInSeconds(frequency);
 
         console.log("Updating plan frequency...");
         console.log("freqSeconds", freqSeconds);
@@ -302,6 +294,10 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
           onChange={(e) => setFrequency(e.target.value)}
           className="w-full bg-[#333333] text-white border-none rounded-md px-3 py-2"
         >
+          <option value="5 Minutes">5 Minutes</option>
+          <option value="10 Minutes">10 Minutes</option>
+          <option value="15 Minutes">15 Minutes</option>
+          <option value="30 Minutes">30 Minutes</option>
           <option value="Hourly">Hourly</option>
           <option value="Daily">Daily</option>
           <option value="Weekly">Weekly</option>
