@@ -78,6 +78,17 @@ const formatPrice = (price: number): string => {
   if (isNaN(price) || !isFinite(price) || price === 0) {
     return "NA";
   }
+
+  // For very small prices, show more decimal places
+  if (price < 0.01) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 6,
+      maximumFractionDigits: 6,
+    }).format(price);
+  }
+
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
