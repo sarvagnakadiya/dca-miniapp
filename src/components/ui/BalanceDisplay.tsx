@@ -6,8 +6,8 @@ import { USDC_ABI } from "~/lib/contracts/abi";
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
 
-const DCA_EXECUTOR_ADDRESS = process.env.NEXT_PUBLIC_DCA_EXECUTOR_ADDRESS as `0x${string}`;
-
+const DCA_EXECUTOR_ADDRESS = process.env
+  .NEXT_PUBLIC_DCA_EXECUTOR_ADDRESS as `0x${string}`;
 
 interface BalanceDisplayProps {
   className?: string;
@@ -82,7 +82,7 @@ export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({
           className="w-8 h-8 rounded-full object-cover border-2 border-gray-700"
         />
       ) : (
-        <span className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-400 to-purple-500 flex items-center justify-center text-lg">
+        <span className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-400 to-orange-500 flex items-center justify-center text-lg">
           🐷
         </span>
       )}
