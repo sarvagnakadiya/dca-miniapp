@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useFrame } from "~/components/providers/FrameProvider";
+import { useMiniApp } from "~/components/providers/FrameProvider";
 import { useRouter } from "next/navigation";
 import sdk from "@farcaster/frame-sdk";
 import { BalanceDisplay } from "./ui/BalanceDisplay";
@@ -126,7 +126,7 @@ const Home = () => {
     null
   );
   const [isLoading, setIsLoading] = useState(true);
-  const { context, isSDKLoaded, addFrame, added } = useFrame();
+  const { context, isSDKLoaded, addFrame, added } = useMiniApp();
   const router = useRouter();
 
   // Use portfolio data from API if available, otherwise fallback to calculated value

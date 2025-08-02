@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "~/components/ui/Button";
-import { useFrame } from "~/components/providers/FrameProvider";
+import { useMiniApp } from "~/components/providers/FrameProvider";
 import { useParams, useRouter } from "next/navigation";
 import { SetFrequencyPopup } from "~/components/ui/SetFrequencyPopup";
 import { TokenApprovalPopup } from "~/components/ui/TokenApprovalPopup";
@@ -86,7 +86,7 @@ interface TokenApiResponse {
 
 const TokenPage = () => {
   const [selectedPeriod, setSelectedPeriod] = useState("1h");
-  const { context, isSDKLoaded } = useFrame();
+  const { context, isSDKLoaded } = useMiniApp();
   const { address } = useAccount();
   const params = useParams();
   const router = useRouter();

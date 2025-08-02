@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "~/lib/prisma";
 import { ethers } from "ethers";
-
-const prisma = new PrismaClient();
 
 const DCA_EXECUTOR_ADDRESS = process.env.NEXT_PUBLIC_DCA_EXECUTOR_ADDRESS;
 const RPC_URL = process.env.RPC_URL;
@@ -231,11 +229,27 @@ export async function POST(
 
     console.log(`Starting execution for plan: ${planHash}`);
 
-    // Fetch the plan and related info
-    const plan = await prisma.dCAPlan.findUnique({
-      where: { planHash },
-      include: { tokenOut: true, user: true },
-    });
+    // Fetch the plan and related info with better error handling
+    let plan;
+    try {
+      plan = await prisma.dCAPlan.findUnique({
+        where: { planHash },
+        include: { tokenOut: true, user: true },
+      });
+    } catch (dbError) {
+      console.error("Database connection error:", dbError);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Database connection failed. Please try again later.",
+          details:
+            dbError instanceof Error
+              ? dbError.message
+              : "Unknown database error",
+        },
+        { status: 503 }
+      );
+    }
 
     if (!plan) {
       return NextResponse.json(
@@ -270,22 +284,18 @@ export async function POST(
     const fromAddress = plan.userWallet;
     const recipient = plan.recipient;
 
-    // Check allowance if not native
-    if (!plan.tokenOut.isWrapped) {
-      console.log(`Checking allowance for token: ${dstToken}`);
-      const currentAllowance = await checkTokenAllowance(dstToken, fromAddress);
-      console.log(
-        `Current allowance: ${currentAllowance.toString()}, Required: ${amount}`
-      );
+    // Check USDC allowance for the DCA executor
+    console.log(`Checking USDC allowance for user: ${fromAddress}`);
+    const currentAllowance = await checkTokenAllowance(srcToken, fromAddress);
+    console.log(
+      `Current USDC allowance: ${currentAllowance.toString()}, Required: ${amount}`
+    );
 
-      if (BigInt(currentAllowance) < BigInt(amount)) {
-        return NextResponse.json(
-          { success: false, error: "Insufficient allowance" },
-          { status: 402 }
-        );
-      }
-    } else {
-      console.log("Native swap - no allowance check needed");
+    if (BigInt(currentAllowance) < BigInt(amount)) {
+      return NextResponse.json(
+        { success: false, error: "Insufficient USDC allowance" },
+        { status: 402 }
+      );
     }
 
     // Get swap data
@@ -434,6 +444,9 @@ export async function POST(
       { status: 500 }
     );
   } finally {
-    await prisma.$disconnect();
+    // The original code had prisma.$disconnect(), but prisma is now a global import.
+    // If there were multiple instances, this might be needed, but for a single global instance,
+    // it's not strictly necessary unless the global prisma instance itself has a disconnect method.
+    // For now, removing it as it's not directly applicable to the global prisma import.
   }
 }

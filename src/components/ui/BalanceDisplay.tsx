@@ -1,7 +1,7 @@
 import React from "react";
 import Image from "next/image";
 import { useAccount, useBalance, useReadContract } from "wagmi";
-import { useFrame } from "~/components/providers/FrameProvider";
+import { useMiniApp } from "~/components/providers/FrameProvider";
 import { USDC_ABI } from "~/lib/contracts/abi";
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
@@ -17,7 +17,7 @@ export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({
   className = "",
 }) => {
   const { address } = useAccount();
-  const { context } = useFrame();
+  const { context } = useMiniApp();
 
   // Fetch USDC balance
   const { data: balanceData, isLoading: balanceLoading } = useBalance({
