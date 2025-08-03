@@ -95,8 +95,10 @@ export async function GET(
     }
 
     userPlans.forEach((plan) => {
-      // Mark the token being sold/spent (tokenOut) as having an active plan
-      tokenPlanMap.set(plan.tokenOut.address, true);
+      // Only mark tokens with active plans
+      if (plan.active) {
+        tokenPlanMap.set(plan.tokenOut.address, true);
+      }
 
       // Store the earliest createdAt for this token (in case of multiple plans)
       const tokenAddress = plan.tokenOut.address;
@@ -189,7 +191,7 @@ export async function GET(
         wrappedName: token.wrappedName,
         wrappedSymbol: token.wrappedSymbol,
         originalAddress: token.originalAddress,
-        hasActivePlan: tokenPlanMap.has(token.address) || false,
+        hasActivePlan: tokenPlanMap.has(token.address),
         planCreatedAt:
           tokenPlanCreatedAtMap.get(token.address)?.toISOString() || null,
         totalInvestedValue,

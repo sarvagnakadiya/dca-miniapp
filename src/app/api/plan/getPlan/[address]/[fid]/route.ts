@@ -123,6 +123,7 @@ export async function GET(
         marketCapUsd,
         volume24h,
         totalSupply,
+        hasActivePlan: userPlans.length > 0,
         plansOut: userPlans,
       },
     });
