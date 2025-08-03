@@ -239,6 +239,11 @@ const TokenPage = () => {
             console.log("hasActivePlan:", tokenData.hasActivePlan);
             console.log("plansOut:", tokenData.plansOut);
             console.log("plansOut length:", tokenData.plansOut?.length);
+            console.log("Investment data:", {
+              totalInvestedValue: tokenData.totalInvestedValue,
+              currentValue: tokenData.currentValue,
+              percentChange: tokenData.percentChange,
+            });
             setToken({
               name: tokenData.name,
               icon: tokenData.image || "₿", // Fallback to Bitcoin symbol if no image
@@ -376,7 +381,7 @@ const TokenPage = () => {
       {/* Stats Section */}
       <div className="bg-[#131313] rounded-xl p-6 mb-6">
         <div className="text-lg font-medium mb-4">Stats</div>
-        {token.hasActivePlan && token.stats.invested > 0 ? (
+        {token.stats.invested > 0 ? (
           <div className="bg-[#1E1E1F] rounded-lg p-4 mb-4">
             <div className="flex justify-between items-center mb-2">
               <div>
@@ -411,7 +416,16 @@ const TokenPage = () => {
               </div>
             </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="bg-[#1E1E1F] rounded-lg p-4 mb-4">
+            <div className="text-center">
+              <div className="text-gray-400 text-sm mb-1">
+                No investment yet
+              </div>
+              <div className="text-white text-lg">Start your DCA journey</div>
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex flex-col">
             <span className="text-white">Market cap</span>
