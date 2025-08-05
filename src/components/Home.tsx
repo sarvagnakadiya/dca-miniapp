@@ -143,6 +143,28 @@ const Home = () => {
       addFrame();
     }
 
+    // Log user visit when they access the app
+    const logUserVisit = async () => {
+      if (context?.user?.fid) {
+        try {
+          await fetch("/api/visit/log", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              fid: context.user.fid,
+              username: context.user.username || null,
+            }),
+          });
+        } catch (error) {
+          console.error("Failed to log user visit:", error);
+        }
+      }
+    };
+
+    logUserVisit();
+
     const fetchTokens = async () => {
       if (!context?.user?.fid) return;
 

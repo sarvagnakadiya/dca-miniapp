@@ -65,3 +65,13 @@ model DCAExecution {
 
   executedAt DateTime @default(now())
 }
+
+model UserVisit {
+  id        String   @id @default(cuid())
+  fid       Int
+  username  String?
+  visitedAt DateTime @default(now())
+
+  @@index([fid])
+  @@index([visitedAt])
+}
