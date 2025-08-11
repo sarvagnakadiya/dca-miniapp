@@ -19,17 +19,7 @@ export async function GET(
       );
     }
 
-    // Test database connection
-    try {
-      await prisma.$connect();
-      console.log("Database connected successfully");
-    } catch (dbError) {
-      console.error("Database connection error:", dbError);
-      return NextResponse.json(
-        { success: false, error: "Database connection failed" },
-        { status: 500 }
-      );
-    }
+    // Database connection is handled by the persistent PrismaClient instance
 
     // Get all tokens
     const tokens: Token[] = await prisma.token.findMany();

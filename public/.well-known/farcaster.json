@@ -13,6 +13,6 @@
     "buttonTitle": "Check this out",
     "splashImageUrl": "https://dca-miniapp.vercel.app/splash.png",
     "splashBackgroundColor": "#000000",
-    "webhookUrl": "https://dca-miniapp.vercel.app/api/webhook"
+    "webhookUrl": "https://api.neynar.com/f/app/4cf69299-de27-4996-81fc-62d3773dce40/event"
   }
 }
