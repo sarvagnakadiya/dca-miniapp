@@ -34,6 +34,12 @@ interface PortfolioData {
   portfolioCurrentValue: number;
   portfolioInvestedAmount: number;
   portfolioPercentChange: number;
+  history?: Array<{
+    date: string;
+    currentValue: number;
+    totalInvestedValue?: number;
+    percentChange?: number | null;
+  }>;
 }
 
 // Utility function to format time ago
@@ -134,6 +140,51 @@ const Home = () => {
       .filter((token) => token.hasActivePlan)
       .reduce((sum, token) => sum + (token.currentValue || 0), 0);
 
+  // Nice scale util (1-2-5) for dynamic Y axis
+  const calculateNiceScale = (
+    minValue: number,
+    maxValue: number,
+    maxTicks: number = 5
+  ) => {
+    const niceNum = (range: number, round: boolean) => {
+      const exponent = Math.floor(Math.log10(range));
+      const fraction = range / Math.pow(10, exponent);
+      let niceFraction: number;
+      if (round) {
+        if (fraction < 1.5) niceFraction = 1;
+        else if (fraction < 3) niceFraction = 2;
+        else if (fraction < 7) niceFraction = 5;
+        else niceFraction = 10;
+      } else {
+        if (fraction <= 1) niceFraction = 1;
+        else if (fraction <= 2) niceFraction = 2;
+        else if (fraction <= 5) niceFraction = 5;
+        else niceFraction = 10;
+      }
+      return niceFraction * Math.pow(10, exponent);
+    };
+
+    if (!isFinite(minValue) || !isFinite(maxValue) || minValue === maxValue) {
+      const base = Math.max(1, Math.abs(maxValue) || 10);
+      const rounded = niceNum(base, true);
+      const niceMin = Math.floor(base / rounded) * rounded;
+      const niceMax = niceMin + rounded * (maxTicks - 1);
+      const tickSpacing = rounded;
+      const ticks: number[] = [];
+      for (let v = niceMin; v <= niceMax + 1e-9; v += tickSpacing)
+        ticks.push(v);
+      return { niceMin, niceMax, tickSpacing, ticks };
+    }
+
+    const range = niceNum(maxValue - minValue, false);
+    const tickSpacing = niceNum(range / (maxTicks - 1), true);
+    const niceMin = Math.floor(minValue / tickSpacing) * tickSpacing;
+    const niceMax = Math.ceil(maxValue / tickSpacing) * tickSpacing;
+    const ticks: number[] = [];
+    for (let v = niceMin; v <= niceMax + 1e-9; v += tickSpacing) ticks.push(v);
+    return { niceMin, niceMax, tickSpacing, ticks };
+  };
+
   useEffect(() => {
     console.log("fetching tokens");
     console.log("context:::", context);
@@ -230,118 +281,155 @@ const Home = () => {
       </div>
 
       {/* Portfolio Balance Section */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <div className="text-gray-400 text-sm mb-2">Portfolio balance</div>
-            <div className="text-4xl font-light">
-              {formatCurrency(totalPortfolioBalance)}
-            </div>
-            {portfolioData && (
-              <div className="flex items-center space-x-4 mt-2 text-sm">
-                <div className="flex items-center space-x-1">
-                  <span className="text-gray-400">Invested:</span>
-                  <span className="text-white">
-                    {formatCurrency(portfolioData.portfolioInvestedAmount)}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <span className="text-gray-400">Change:</span>
-                  <span
-                    className={
-                      portfolioData.portfolioPercentChange >= 0
-                        ? "text-green-400"
-                        : "text-red-400"
-                    }
-                  >
-                    {portfolioData.portfolioPercentChange >= 0 ? "+" : ""}
-                    {portfolioData.portfolioPercentChange.toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Time Period Selector */}
-          {/* , */}
-        </div>
-
-        {/* Chart - Commented out as we don't have dynamic data yet */}
-        {/* 
-        <div className="relative h-32 mb-8">
-          <svg className="w-full h-full" viewBox="0 0 400 120">
-            <defs>
-              <linearGradient
-                id="chartGradient"
-                x1="0%"
-                y1="0%"
-                x2="0%"
-                y2="100%"
-              >
-                <stop offset="0%" stopColor="#f97316" stopOpacity="0.3" />
-                <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-
-            <line
-              x1="0"
-              y1="20"
-              x2="400"
-              y2="20"
-              stroke="#333"
-              strokeWidth="0.5"
-            />
-            <line
-              x1="0"
-              y1="40"
-              x2="400"
-              y2="40"
-              stroke="#333"
-              strokeWidth="0.5"
-            />
-            <line
-              x1="0"
-              y1="60"
-              x2="400"
-              y2="60"
-              stroke="#333"
-              strokeWidth="0.5"
-            />
-            <line
-              x1="0"
-              y1="80"
-              x2="400"
-              y2="80"
-              stroke="#333"
-              strokeWidth="0.5"
-            />
-            <line
-              x1="0"
-              y1="100"
-              x2="400"
-              y2="100"
-              stroke="#333"
-              strokeWidth="0.5"
-            />
-
-            <path
-              d="M 0 80 Q 80 75 120 70 T 200 65 Q 280 60 320 55 T 400 45"
-              fill="url(#chartGradient)"
-              stroke="#f97316"
-              strokeWidth="2"
-              fillRule="evenodd"
-            />
-          </svg>
-
-          <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-gray-500 -ml-12">
-            <span>{formatCurrency(totalPortfolioBalance * 1.1)}</span>
-            <span>{formatCurrency(totalPortfolioBalance * 0.8)}</span>
-            <span>{formatCurrency(totalPortfolioBalance * 0.6)}</span>
-            <span>{formatCurrency(totalPortfolioBalance * 0.4)}</span>
-          </div>
-        </div>
-        */}
+<div className="mb-8">
+  <div className="flex justify-between items-center mb-6">
+    <div>
+      <div className="text-gray-400 text-sm mb-2">Portfolio balance</div>
+      <div className="text-4xl font-light">
+        {formatCurrency(totalPortfolioBalance)}
       </div>
+      {portfolioData && (
+        <div className="flex items-center space-x-4 mt-2 text-sm">
+          <div className="flex items-center space-x-1">
+            <span className="text-gray-400">Invested:</span>
+            <span className="text-white">
+              {formatCurrency(portfolioData.portfolioInvestedAmount)}
+            </span>
+          </div>
+          <div className="flex items-center space-x-1">
+            <span className="text-gray-400">Change:</span>
+            <span
+              className={
+                portfolioData.portfolioPercentChange >= 0
+                  ? "text-green-400"
+                  : "text-red-400"
+              }
+            >
+              {portfolioData.portfolioPercentChange >= 0 ? "+" : ""}
+              {portfolioData.portfolioPercentChange.toFixed(2)}%
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+
+  {/* Dynamic Portfolio Chart */}
+  {portfolioData?.history &&
+    portfolioData.history.length > 0 &&
+    (portfolioData.portfolioInvestedAmount || 0) > 0 && (
+      <div className="relative h-40">
+        {(() => {
+          const data = portfolioData.history!;
+          const values = data.map((d) => d.currentValue);
+          const minVal = Math.min(...values);
+          const maxVal = Math.max(...values);
+          const { niceMin, niceMax, ticks } = calculateNiceScale(
+            minVal,
+            maxVal,
+            5
+          );
+
+          const width = 400;
+          const height = 140;
+          const paddingLeft = 50; // slightly increased for y-axis labels
+          const paddingRight = 10; // reduced right padding
+          const paddingTop = 10;
+          const paddingBottom = 10;
+          const chartHeight = height - paddingTop - paddingBottom;
+          const chartWidth = width - paddingLeft - paddingRight;
+          const x = (i: number) =>
+            paddingLeft + (i / Math.max(1, data.length - 1)) * chartWidth;
+          const y = (v: number) =>
+            paddingTop +
+            (1 - (v - niceMin) / Math.max(1e-9, niceMax - niceMin)) *
+              chartHeight;
+
+          // Build path
+          const path = data
+            .map(
+              (d, i) =>
+                `${i === 0 ? "M" : "L"} ${x(i)} ${y(d.currentValue)}`
+            )
+            .join(" ");
+
+          // Area under line
+          const innerRight = width - paddingRight;
+          const areaPath = `${path} L ${innerRight} ${
+            height - paddingBottom
+          } L ${paddingLeft} ${height - paddingBottom} Z`;
+
+          return (
+            <>
+              <svg
+                className="w-full h-full"
+                viewBox={`0 0 ${width} ${height}`}
+                preserveAspectRatio="none"
+              >
+                <defs>
+                  <linearGradient
+                    id="chartGradient"
+                    x1="0%"
+                    y1="0%"
+                    x2="0%"
+                    y2="100%"
+                  >
+                    <stop
+                      offset="0%"
+                      stopColor="#f97316"
+                      stopOpacity="0.25"
+                    />
+                    <stop
+                      offset="100%"
+                      stopColor="#f97316"
+                      stopOpacity="0"
+                    />
+                  </linearGradient>
+                </defs>
+
+                {ticks.map((t) => (
+                  <line
+                    key={t}
+                    x1={paddingLeft}
+                    y1={y(t)}
+                    x2={innerRight}
+                    y2={y(t)}
+                    stroke="#3A3A3A"
+                    strokeDasharray="6 6"
+                    strokeWidth="1"
+                  />
+                ))}
+
+                <path
+                  d={areaPath}
+                  fill="url(#chartGradient)"
+                  stroke="none"
+                />
+                <path
+                  d={path}
+                  fill="none"
+                  stroke="#f97316"
+                  strokeWidth="3"
+                />
+              </svg>
+
+              <div
+                className="pointer-events-none absolute left-0 top-0 h-full flex flex-col justify-between items-end text-[11px] text-gray-400 pr-2"
+                style={{ width: paddingLeft - 5 }}
+              >
+                {ticks
+                  .slice()
+                  .reverse()
+                  .map((t) => (
+                    <span key={t}>{formatCurrency(t)}</span>
+                  ))}
+              </div>
+            </>
+          );
+        })()}
+      </div>
+    )}
+</div>
 
       {/* DCA Positions */}
       <div className="mb-8">

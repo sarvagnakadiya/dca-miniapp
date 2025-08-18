@@ -226,6 +226,27 @@ export async function GET(
       portfolioPercentChange,
     });
 
+    // Fetch day-by-day portfolio changes for chart
+    // We join through the relation to User by fid
+    const portfolioDailyChanges = await prisma.portfolioDailyChange.findMany({
+      where: {
+        user: {
+          fid: Number(fid),
+        },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    const portfolioHistory = portfolioDailyChanges.map((item) => ({
+      date: item.date.toISOString(),
+      currentValue: parseFloat(item.currentValue.toString()),
+      totalInvestedValue: parseFloat(item.totalInvestedValue.toString()),
+      percentChange:
+        item.percentChange !== null && item.percentChange !== undefined
+          ? parseFloat(item.percentChange.toString())
+          : null,
+    }));
+
     console.log(
       "Final response - tokens with user data:",
       sortedTokensWithUserData.length
@@ -244,6 +265,7 @@ export async function GET(
         portfolioCurrentValue,
         portfolioInvestedAmount,
         portfolioPercentChange,
+        history: portfolioHistory,
       },
     };
 
