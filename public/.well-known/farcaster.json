@@ -10,9 +10,43 @@
     "iconUrl": "https://dca-miniapp.vercel.app/icon.png",
     "homeUrl": "https://dca-miniapp.vercel.app",
     "imageUrl": "https://dca-miniapp.vercel.app/frame.png",
-    "buttonTitle": "Check this out",
+    "buttonTitle": "Launch DCA",
     "splashImageUrl": "https://dca-miniapp.vercel.app/splash.png",
     "splashBackgroundColor": "#000000",
-    "webhookUrl": "https://api.neynar.com/f/app/4cf69299-de27-4996-81fc-62d3773dce40/event"
+    "subtitle": "STOP WATCHING, START STACKING",
+    "description": "Create a DCA plan to buy crypto regularly",
+    "primaryCategory": "finance",
+    "tagline": "Invest. Chill. Repeat.",
+    "ogTitle": "Stack with DCA",
+    "ogDescription": "Simple, onchain DCA. Set it, forget it, grow it.",
+    "ogImageUrl": "https://dca-miniapp.vercel.app/frame.png",
+    "castShareUrl": "https://farcaster.xyz/~/compose?text=DCA%20%3E%20FOMO%20%F0%9F%98%A4%0AStart%20stacking%20bags%20here%20%F0%9F%91%87&embeds[]=https://dca-miniapp.vercel.app/",
+    "webhookUrl": "https://api.neynar.com/f/app/4cf69299-de27-4996-81fc-62d3773dce40/event",
+    "heroImageUrl": "https://dca-miniapp.vercel.app/frame.png",
+    "screenshotUrls": [
+      "https://dca-miniapp.vercel.app/screenshot1.png"
+    ],
+    "tags": [
+      "invest",
+      "dca",
+      "buy",
+      "finance",
+      "crypto",
+      "track",
+      "miniapp",
+      "SIP",
+      "BuildersOnBase",
+      "InvestSmarter",
+      "PassiveIncome",
+      "CryptoTools",
+      "CryptoAlpha",
+      "DollarCostAveraging",
+      "dca tracker miniapp"
+    ]
+  },
+  "baseBuilder": {
+    "allowedAddresses": ["0x32df64693E4A2090C78d1c7480C9dDdc651D57de"]
   }
 }
+
+

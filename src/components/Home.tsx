@@ -281,155 +281,155 @@ const Home = () => {
       </div>
 
       {/* Portfolio Balance Section */}
-<div className="mb-8">
-  <div className="flex justify-between items-center mb-6">
-    <div>
-      <div className="text-gray-400 text-sm mb-2">Portfolio balance</div>
-      <div className="text-4xl font-light">
-        {formatCurrency(totalPortfolioBalance)}
-      </div>
-      {portfolioData && (
-        <div className="flex items-center space-x-4 mt-2 text-sm">
-          <div className="flex items-center space-x-1">
-            <span className="text-gray-400">Invested:</span>
-            <span className="text-white">
-              {formatCurrency(portfolioData.portfolioInvestedAmount)}
-            </span>
-          </div>
-          <div className="flex items-center space-x-1">
-            <span className="text-gray-400">Change:</span>
-            <span
-              className={
-                portfolioData.portfolioPercentChange >= 0
-                  ? "text-green-400"
-                  : "text-red-400"
-              }
-            >
-              {portfolioData.portfolioPercentChange >= 0 ? "+" : ""}
-              {portfolioData.portfolioPercentChange.toFixed(2)}%
-            </span>
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <div className="text-gray-400 text-sm mb-2">Portfolio balance</div>
+            <div className="text-4xl font-light">
+              {formatCurrency(totalPortfolioBalance)}
+            </div>
+            {portfolioData && (
+              <div className="flex items-center space-x-4 mt-2 text-sm">
+                <div className="flex items-center space-x-1">
+                  <span className="text-gray-400">Invested:</span>
+                  <span className="text-white">
+                    {formatCurrency(portfolioData.portfolioInvestedAmount)}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span className="text-gray-400">Change:</span>
+                  <span
+                    className={
+                      portfolioData.portfolioPercentChange >= 0
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }
+                  >
+                    {portfolioData.portfolioPercentChange >= 0 ? "+" : ""}
+                    {portfolioData.portfolioPercentChange.toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
-    </div>
-  </div>
 
-  {/* Dynamic Portfolio Chart */}
-  {portfolioData?.history &&
-    portfolioData.history.length > 0 &&
-    (portfolioData.portfolioInvestedAmount || 0) > 0 && (
-      <div className="relative h-40">
-        {(() => {
-          const data = portfolioData.history!;
-          const values = data.map((d) => d.currentValue);
-          const minVal = Math.min(...values);
-          const maxVal = Math.max(...values);
-          const { niceMin, niceMax, ticks } = calculateNiceScale(
-            minVal,
-            maxVal,
-            5
-          );
+        {/* Dynamic Portfolio Chart */}
+        {portfolioData?.history &&
+          portfolioData.history.length > 0 &&
+          (portfolioData.portfolioInvestedAmount || 0) > 0 && (
+            <div className="relative h-40">
+              {(() => {
+                const data = portfolioData.history!;
+                const values = data.map((d) => d.currentValue);
+                const minVal = Math.min(...values);
+                const maxVal = Math.max(...values);
+                const { niceMin, niceMax, ticks } = calculateNiceScale(
+                  minVal,
+                  maxVal,
+                  5
+                );
 
-          const width = 400;
-          const height = 140;
-          const paddingLeft = 50; // slightly increased for y-axis labels
-          const paddingRight = 10; // reduced right padding
-          const paddingTop = 10;
-          const paddingBottom = 10;
-          const chartHeight = height - paddingTop - paddingBottom;
-          const chartWidth = width - paddingLeft - paddingRight;
-          const x = (i: number) =>
-            paddingLeft + (i / Math.max(1, data.length - 1)) * chartWidth;
-          const y = (v: number) =>
-            paddingTop +
-            (1 - (v - niceMin) / Math.max(1e-9, niceMax - niceMin)) *
-              chartHeight;
+                const width = 400;
+                const height = 140;
+                const paddingLeft = 50; // slightly increased for y-axis labels
+                const paddingRight = 10; // reduced right padding
+                const paddingTop = 10;
+                const paddingBottom = 10;
+                const chartHeight = height - paddingTop - paddingBottom;
+                const chartWidth = width - paddingLeft - paddingRight;
+                const x = (i: number) =>
+                  paddingLeft + (i / Math.max(1, data.length - 1)) * chartWidth;
+                const y = (v: number) =>
+                  paddingTop +
+                  (1 - (v - niceMin) / Math.max(1e-9, niceMax - niceMin)) *
+                    chartHeight;
 
-          // Build path
-          const path = data
-            .map(
-              (d, i) =>
-                `${i === 0 ? "M" : "L"} ${x(i)} ${y(d.currentValue)}`
-            )
-            .join(" ");
+                // Build path
+                const path = data
+                  .map(
+                    (d, i) =>
+                      `${i === 0 ? "M" : "L"} ${x(i)} ${y(d.currentValue)}`
+                  )
+                  .join(" ");
 
-          // Area under line
-          const innerRight = width - paddingRight;
-          const areaPath = `${path} L ${innerRight} ${
-            height - paddingBottom
-          } L ${paddingLeft} ${height - paddingBottom} Z`;
+                // Area under line
+                const innerRight = width - paddingRight;
+                const areaPath = `${path} L ${innerRight} ${
+                  height - paddingBottom
+                } L ${paddingLeft} ${height - paddingBottom} Z`;
 
-          return (
-            <>
-              <svg
-                className="w-full h-full"
-                viewBox={`0 0 ${width} ${height}`}
-                preserveAspectRatio="none"
-              >
-                <defs>
-                  <linearGradient
-                    id="chartGradient"
-                    x1="0%"
-                    y1="0%"
-                    x2="0%"
-                    y2="100%"
-                  >
-                    <stop
-                      offset="0%"
-                      stopColor="#f97316"
-                      stopOpacity="0.25"
-                    />
-                    <stop
-                      offset="100%"
-                      stopColor="#f97316"
-                      stopOpacity="0"
-                    />
-                  </linearGradient>
-                </defs>
+                return (
+                  <>
+                    <svg
+                      className="w-full h-full"
+                      viewBox={`0 0 ${width} ${height}`}
+                      preserveAspectRatio="none"
+                    >
+                      <defs>
+                        <linearGradient
+                          id="chartGradient"
+                          x1="0%"
+                          y1="0%"
+                          x2="0%"
+                          y2="100%"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor="#f97316"
+                            stopOpacity="0.25"
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="#f97316"
+                            stopOpacity="0"
+                          />
+                        </linearGradient>
+                      </defs>
 
-                {ticks.map((t) => (
-                  <line
-                    key={t}
-                    x1={paddingLeft}
-                    y1={y(t)}
-                    x2={innerRight}
-                    y2={y(t)}
-                    stroke="#3A3A3A"
-                    strokeDasharray="6 6"
-                    strokeWidth="1"
-                  />
-                ))}
+                      {ticks.map((t) => (
+                        <line
+                          key={t}
+                          x1={paddingLeft}
+                          y1={y(t)}
+                          x2={innerRight}
+                          y2={y(t)}
+                          stroke="#3A3A3A"
+                          strokeDasharray="6 6"
+                          strokeWidth="1"
+                        />
+                      ))}
 
-                <path
-                  d={areaPath}
-                  fill="url(#chartGradient)"
-                  stroke="none"
-                />
-                <path
-                  d={path}
-                  fill="none"
-                  stroke="#f97316"
-                  strokeWidth="3"
-                />
-              </svg>
+                      <path
+                        d={areaPath}
+                        fill="url(#chartGradient)"
+                        stroke="none"
+                      />
+                      <path
+                        d={path}
+                        fill="none"
+                        stroke="#f97316"
+                        strokeWidth="3"
+                      />
+                    </svg>
 
-              <div
-                className="pointer-events-none absolute left-0 top-0 h-full flex flex-col justify-between items-end text-[11px] text-gray-400 pr-2"
-                style={{ width: paddingLeft - 5 }}
-              >
-                {ticks
-                  .slice()
-                  .reverse()
-                  .map((t) => (
-                    <span key={t}>{formatCurrency(t)}</span>
-                  ))}
-              </div>
-            </>
-          );
-        })()}
+                    <div
+                      className="pointer-events-none absolute left-0 top-0 h-full flex flex-col justify-between items-end text-[11px] text-gray-400 pr-2"
+                      style={{ width: paddingLeft - 5 }}
+                    >
+                      {ticks
+                        .slice()
+                        .reverse()
+                        .map((t) => (
+                          <span key={t}>{formatCurrency(t)}</span>
+                        ))}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
       </div>
-    )}
-</div>
 
       {/* DCA Positions */}
       <div className="mb-8">
