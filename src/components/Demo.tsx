@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Input } from "../components/ui/input";
 import { signIn, signOut, getCsrfToken } from "next-auth/react";
-import sdk, { SignIn as SignInCore } from "@farcaster/frame-sdk";
+import sdk, { SignIn as SignInCore } from "@farcaster/miniapp-sdk";
 import {
   useAccount,
   useSendTransaction,

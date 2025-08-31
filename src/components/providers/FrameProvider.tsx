@@ -5,7 +5,7 @@ import sdk, {
   type Context,
   type MiniAppNotificationDetails,
   AddMiniApp,
-} from "@farcaster/frame-sdk";
+} from "@farcaster/miniapp-sdk";
 import { createStore } from "mipd";
 import React from "react";
 import { logEvent } from "../../lib/amplitude";

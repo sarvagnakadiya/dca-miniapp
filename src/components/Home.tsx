@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useMiniApp } from "~/components/providers/FrameProvider";
 import { useRouter } from "next/navigation";
-import sdk from "@farcaster/frame-sdk";
+import sdk from "@farcaster/miniapp-sdk";
 import { BalanceDisplay } from "./ui/BalanceDisplay";
 import InvestedPositionTile from "./ui/InvestedPositionTile";
 import ExplorePositionTile from "./ui/ExplorePositionTile";
 import PositionTileSkeleton from "./ui/PositionTileSkeleton";
+import TokenView from "~/components/TokenView";
 
 interface Token {
   id: string;
@@ -132,6 +133,7 @@ const Home = () => {
   const [isLoading, setIsLoading] = useState(true);
   const { context, isSDKLoaded, addFrame, added } = useMiniApp();
   const router = useRouter();
+  const [openTokenAddress, setOpenTokenAddress] = useState<string | null>(null);
 
   // Use portfolio data from API if available, otherwise fallback to calculated value
   const totalPortfolioBalance =
@@ -449,7 +451,7 @@ const Home = () => {
               <div
                 key={token.id || token.address}
                 className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
-                onClick={() => router.push(`/token/${token.address}`)}
+                onClick={() => setOpenTokenAddress(token.address)}
               >
                 <InvestedPositionTile
                   icon={token.image || token.symbol?.[0] || "₿"}
@@ -489,7 +491,7 @@ const Home = () => {
               <div
                 key={token.id || token.address}
                 className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
-                onClick={() => router.push(`/token/${token.address}`)}
+                onClick={() => setOpenTokenAddress(token.address)}
               >
                 <ExplorePositionTile
                   icon={token.image || token.symbol?.[0] || "₿"}
@@ -504,6 +506,14 @@ const Home = () => {
             ))
         )}
       </div>
+      {openTokenAddress && (
+        <div className="fixed inset-0 z-50 bg-black overflow-y-auto">
+          <TokenView
+            tokenAddress={openTokenAddress}
+            onClose={() => setOpenTokenAddress(null)}
+          />
+        </div>
+      )}
     </div>
   );
 };
