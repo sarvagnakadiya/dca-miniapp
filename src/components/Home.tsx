@@ -135,6 +135,7 @@ const Home = () => {
   const { context, isSDKLoaded, addFrame, added } = useMiniApp();
   const router = useRouter();
   const [openTokenAddress, setOpenTokenAddress] = useState<string | null>(null);
+  const [chartMode, setChartMode] = useState<"value" | "percent">("value");
 
   // Use portfolio data from API if available, otherwise fallback to calculated value
   const totalPortfolioBalance =
@@ -320,6 +321,28 @@ const Home = () => {
                     {portfolioData.portfolioPercentChange.toFixed(2)}%
                   </span>
                 </div>
+                <div className="absolute right-4 bg-[#1E1E1F] border border-[#2A2A2A] rounded-full p-1 inline-flex shadow-sm mb-5">
+                  <button
+                    onClick={() => setChartMode("value")}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      chartMode === "value"
+                        ? "bg-black text-white"
+                        : "text-gray-300"
+                    }`}
+                  >
+                    $
+                  </button>
+                  <button
+                    onClick={() => setChartMode("percent")}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      chartMode === "percent"
+                        ? "bg-black text-white"
+                        : "text-gray-300"
+                    }`}
+                  >
+                    %
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -330,9 +353,28 @@ const Home = () => {
           portfolioData.history.length > 0 &&
           (portfolioData.portfolioInvestedAmount || 0) > 0 && (
             <div className="relative h-40">
+              <div className="absolute top-2 right-2 z-10"></div>
               {(() => {
                 const data = portfolioData.history!;
-                const values = data.map((d) => d.currentValue);
+                const values =
+                  chartMode === "value"
+                    ? data.map((d) => d.currentValue)
+                    : (() => {
+                        const apiPercents = data.map((d) =>
+                          d.percentChange !== null &&
+                          d.percentChange !== undefined
+                            ? Number(d.percentChange)
+                            : NaN
+                        );
+                        const hasApi = apiPercents.some((v) => !isNaN(v));
+                        if (hasApi)
+                          return apiPercents.map((v) => (isNaN(v) ? 0 : v));
+                        const first = data[0]?.currentValue || 0;
+                        if (first === 0) return data.map(() => 0);
+                        return data.map(
+                          (d) => ((d.currentValue - first) / first) * 100
+                        );
+                      })();
                 const minVal = Math.min(...values);
                 const maxVal = Math.max(...values);
                 const { niceMin, niceMax, ticks } = calculateNiceScale(
@@ -358,10 +400,21 @@ const Home = () => {
 
                 // Build path
                 const path = data
-                  .map(
-                    (d, i) =>
-                      `${i === 0 ? "M" : "L"} ${x(i)} ${y(d.currentValue)}`
-                  )
+                  .map((d, i) => {
+                    const value =
+                      chartMode === "value"
+                        ? d.currentValue
+                        : d.percentChange !== null &&
+                          d.percentChange !== undefined
+                        ? Number(d.percentChange)
+                        : (() => {
+                            const first = data[0]?.currentValue || 0;
+                            return first === 0
+                              ? 0
+                              : ((d.currentValue - first) / first) * 100;
+                          })();
+                    return `${i === 0 ? "M" : "L"} ${x(i)} ${y(value)}`;
+                  })
                   .join(" ");
 
                 // Area under line
@@ -432,7 +485,11 @@ const Home = () => {
                         .slice()
                         .reverse()
                         .map((t) => (
-                          <span key={t}>{formatCurrency(t)}</span>
+                          <span key={t}>
+                            {chartMode === "value"
+                              ? formatCurrency(t)
+                              : `${Number(t.toFixed(0))}%`}
+                          </span>
                         ))}
                     </div>
                   </>
