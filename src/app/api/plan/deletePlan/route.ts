@@ -3,7 +3,7 @@ import { prisma } from "~/lib/prisma";
 
 export async function POST(req: Request) {
   try {
-    const { userAddress, tokenOutAddress, fid } = await req.json();
+    const { userAddress, tokenOutAddress, fid, action } = await req.json();
 
     // Validation
     const requiredFields = {
@@ -39,43 +39,62 @@ export async function POST(req: Request) {
       );
     }
 
-    // Find the active plan for this user and token
-    const existingPlan = await prisma.dCAPlan.findFirst({
-      where: {
-        userWallet: user.wallet,
-        tokenOutAddress: tokenOutAddress.toLowerCase(),
-        active: true,
-      },
-    });
+    const normalizedToken = tokenOutAddress.toLowerCase();
+    const op: "stop" | "delete" = action === "delete" ? "delete" : "stop";
 
-    if (!existingPlan) {
-      return NextResponse.json(
-        { success: false, error: "No active plan found for this token" },
-        { status: 404 }
-      );
+    if (op === "stop") {
+      // Find only active plan for stop
+      const activePlan = await prisma.dCAPlan.findFirst({
+        where: {
+          userWallet: user.wallet,
+          tokenOutAddress: normalizedToken,
+          active: true,
+        },
+      });
+
+      if (!activePlan) {
+        return NextResponse.json(
+          { success: false, error: "No active plan found for this token" },
+          { status: 404 }
+        );
+      }
+
+      // Only deactivate; keep executions/history
+      await prisma.dCAPlan.update({
+        where: { planHash: activePlan.planHash },
+        data: { active: false },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Plan stopped (set inactive)",
+        planHash: activePlan.planHash,
+      });
+    } else {
+      // Delete any plan (active or inactive) and its executions
+      const plan = await prisma.dCAPlan.findFirst({
+        where: { userWallet: user.wallet, tokenOutAddress: normalizedToken },
+      });
+
+      if (!plan) {
+        return NextResponse.json(
+          { success: false, error: "No plan found for this token" },
+          { status: 404 }
+        );
+      }
+
+      // Delete executions first, then the plan
+      await prisma.dCAExecution.deleteMany({
+        where: { planHash: plan.planHash },
+      });
+      await prisma.dCAPlan.delete({ where: { planHash: plan.planHash } });
+
+      return NextResponse.json({
+        success: true,
+        message: "Plan and all executions deleted",
+        deletedPlanHash: plan.planHash,
+      });
     }
-
-    // Delete all executions related to this plan first
-    await prisma.dCAExecution.deleteMany({
-      where: { planHash: existingPlan.planHash },
-    });
-
-    // Mark the plan as inactive instead of deleting
-    await prisma.dCAPlan.update({
-      where: { planHash: existingPlan.planHash },
-      data: { active: false },
-    });
-
-    return NextResponse.json({
-      success: true,
-      message:
-        "Plan deactivated successfully and all related executions deleted",
-      deactivatedPlan: {
-        planHash: existingPlan.planHash,
-        userWallet: existingPlan.userWallet,
-        tokenOutAddress: existingPlan.tokenOutAddress,
-      },
-    });
   } catch (error) {
     console.error("Error deleting plan:", error);
     return NextResponse.json(

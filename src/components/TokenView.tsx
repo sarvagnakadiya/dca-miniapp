@@ -9,6 +9,7 @@ import Image from "next/image";
 import sdk from "@farcaster/miniapp-sdk";
 import { useAccount, useWriteContract } from "wagmi";
 import DCA_ABI from "~/lib/contracts/DCAForwarder.json";
+import { useRouter } from "next/navigation";
 
 interface TokenStats {
   oneYearAgo: number;
@@ -87,6 +88,7 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
   const [selectedPeriod, setSelectedPeriod] = useState("1h");
   const { context, isSDKLoaded } = useMiniApp();
   const { address } = useAccount();
+  const router = useRouter();
   const [showSetFrequency, setShowSetFrequency] = useState(false);
   const [showTokenApproval, setShowTokenApproval] = useState(false);
   const [showEditFrequency, setShowEditFrequency] = useState(false);
@@ -96,6 +98,8 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
   const [isAboutExpanded, setIsAboutExpanded] = useState(false);
   const [isFrequencyExpanded, setIsFrequencyExpanded] = useState(false);
   const [isCancellingPlan, setIsCancellingPlan] = useState(false);
+  const [isStoppingPlan, setIsStoppingPlan] = useState(false);
+  const [isResumingPlan, setIsResumingPlan] = useState(false);
 
   const [frequencyData, setFrequencyData] = useState<{
     amount: number;
@@ -131,51 +135,8 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
   const DCA_EXECUTOR_ADDRESS = process.env
     .NEXT_PUBLIC_DCA_EXECUTOR_ADDRESS as `0x${string}`;
 
-  const handleCancelPlan = async () => {
-    if (!address || !tokenAddress) return;
-
+  const refetchPlanData = async () => {
     try {
-      setIsCancellingPlan(true);
-
-      const hash = await cancelPlan({
-        address: DCA_EXECUTOR_ADDRESS,
-        abi: DCA_ABI.abi,
-        functionName: "cancelPlan",
-        args: [tokenAddress as `0x${string}`],
-      });
-
-      console.log("Plan cancellation transaction hash:", hash);
-
-      // Also delete the plan from the database
-      if (context?.user?.fid) {
-        try {
-          const deleteResponse = await fetch("/api/plan/deletePlan", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              userAddress: address,
-              tokenOutAddress: tokenAddress,
-              fid: context.user.fid,
-            }),
-          });
-
-          const deleteResult = await deleteResponse.json();
-          if (deleteResult.success) {
-            console.log("Plan deleted from database successfully");
-          } else {
-            console.error(
-              "Failed to delete plan from database:",
-              deleteResult.error
-            );
-          }
-        } catch (dbError) {
-          console.error("Error calling deletePlan API:", dbError);
-        }
-      }
-
-      // Refetch plan data after cancellation
       if (context?.user?.fid) {
         const response = await fetch(
           `/api/plan/getPlan/${tokenAddress}/${context.user.fid}`
@@ -193,10 +154,127 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
           }
         }
       }
+    } catch (e) {
+      console.error("Failed to refetch plan data:", e);
+    }
+  };
+
+  const handleDeletePosition = async () => {
+    if (!address || !tokenAddress) return;
+
+    try {
+      setIsCancellingPlan(true);
+
+      const hash = await cancelPlan({
+        address: DCA_EXECUTOR_ADDRESS,
+        abi: DCA_ABI.abi,
+        functionName: "cancelPlan",
+        args: [tokenAddress as `0x${string}`],
+      });
+
+      console.log("Plan cancellation transaction hash:", hash);
+
+      // Also delete the plan from the database (full delete)
+      if (context?.user?.fid) {
+        try {
+          const deleteResponse = await fetch("/api/plan/deletePlan", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userAddress: address,
+              tokenOutAddress: tokenAddress,
+              fid: context.user.fid,
+              action: "delete",
+            }),
+          });
+
+          const deleteResult = await deleteResponse.json();
+          if (deleteResult.success) {
+            console.log("Plan deleted from database successfully");
+          } else {
+            console.error(
+              "Failed to delete plan from database:",
+              deleteResult.error
+            );
+          }
+        } catch (dbError) {
+          console.error("Error calling deletePlan API:", dbError);
+        }
+      }
+
+      await refetchPlanData();
+      router.refresh();
     } catch (error) {
-      console.error("Error cancelling plan:", error);
+      console.error("Error deleting position:", error);
     } finally {
       setIsCancellingPlan(false);
+    }
+  };
+
+  const handleStopPosition = async () => {
+    if (!address || !tokenAddress) return;
+
+    try {
+      setIsStoppingPlan(true);
+      // Only mark inactive in DB (no contract call)
+      if (context?.user?.fid) {
+        const resp = await fetch("/api/plan/deletePlan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userAddress: address,
+            tokenOutAddress: tokenAddress,
+            fid: context.user.fid,
+            action: "stop",
+          }),
+        });
+        const resJson = await resp.json();
+        if (!resJson.success) {
+          console.error("Failed to stop position:", resJson.error);
+        }
+      }
+
+      await refetchPlanData();
+      router.refresh();
+    } catch (error) {
+      console.error("Error stopping position:", error);
+    } finally {
+      setIsStoppingPlan(false);
+    }
+  };
+
+  const handleResumePosition = async () => {
+    if (!address || !tokenAddress) return;
+
+    try {
+      setIsResumingPlan(true);
+      if (context?.user?.fid) {
+        // Reactivate via createPlan API (reactivation path handled server-side)
+        const resp = await fetch("/api/plan/createPlan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userAddress: address,
+            tokenOutAddress: tokenAddress,
+            recipient: address,
+            amountIn: activePlan ? Number(activePlan.amountIn) : 10 * 1_000_000,
+            frequency: activePlan?.frequency || 86400,
+            fid: context.user.fid,
+          }),
+        });
+        const json = await resp.json();
+        if (!json.success) {
+          console.error("Failed to resume plan:", json.error);
+        }
+      }
+      await refetchPlanData();
+      router.refresh();
+    } catch (error) {
+      console.error("Error resuming position:", error);
+    } finally {
+      setIsResumingPlan(false);
     }
   };
 
@@ -316,9 +394,9 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
       </div>
 
       {/* Price & Chart Section */}
-      <div className="bg-[#131313] rounded-xl p-6 mb-6">
-        <div className="text-gray-400 text-sm mb-1">Price</div>
-        <div className="flex items-center justify-between mb-2">
+      <div className="bg-black rounded-xl mb-6 shadow-lg">
+        <div className="text-gray-400 text-sm mb-1 ml-6 mt-6">Price</div>
+        <div className="flex items-center justify-between mb-2 ml-6">
           <div>
             <div className="text-4xl font-light">
               ${Number(token.price).toFixed(2)}
@@ -341,18 +419,22 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
           </div>
         </div>
         {/* GeckoTerminal Chart */}
-        <div className="relative h-[400px] mt-2">
+        <div className="relative h-[350px] mt-2">
           <iframe
-            height="100%"
-            width="100%"
             id="geckoterminal-embed"
             title="GeckoTerminal Embed"
-            src={`https://www.geckoterminal.com/base/pools/${tokenAddress}?embed=1&info=0&swaps=0&grayscale=0&light_chart=0&chart_type=price&resolution=${getResolution(
+            src={`https://www.geckoterminal.com/base/pools/${tokenAddress}?embed=1&info=0&swaps=0&light_chart=0&chart_type=market_cap&resolution=${getResolution(
               selectedPeriod
-            )}`}
+            )}&bg_color=131313`}
             frameBorder="0"
             allow="clipboard-write"
             allowFullScreen
+            style={{
+              width: "100%",
+              height: "100%",
+              filter:
+                "brightness(1) saturate(0.7) sepia(0.7) contrast(1.6) hue-rotate(-19deg)",
+            }}
           />
         </div>
       </div>
@@ -433,7 +515,7 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
         </div>
       </div>
 
-      {/* Frequency Bubble (if active plan) - Now foldable */}
+      {/* Frequency Bubble (if active plan) */}
       {token.hasActivePlan && activePlan && (
         <div className="bg-[#131313] rounded-xl p-4 mb-6">
           <div className="flex justify-between items-center mb-2">
@@ -511,28 +593,6 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
               </span>
             </div>
           </div>
-
-          {/* Only show danger zone when expanded */}
-          {isFrequencyExpanded && (
-            <div className="mt-4">
-              <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
-                <div className="text-red-400 text-sm mb-2">Danger Zone</div>
-                <div className="text-gray-300 text-sm mb-3">
-                  This will permanently stop your DCA position. You&apos;ll keep
-                  any tokens you&apos;ve already purchased.
-                </div>
-                <Button
-                  className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 px-4 rounded-lg w-full disabled:bg-gray-600 disabled:text-white"
-                  onClick={handleCancelPlan}
-                  disabled={isCancelling || isCancellingPlan}
-                >
-                  {isCancelling || isCancellingPlan
-                    ? "Cancelling..."
-                    : "Stop Position"}
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -577,6 +637,50 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
         </div>
       </div>
 
+      {/* Actions under About - show when there is any plan (active or paused) */}
+      {activePlan && (
+        <div className="bg-[#131313] rounded-xl p-4 mb-6">
+          {(() => {
+            const isPlanActive = Boolean(activePlan?.active);
+            return (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  className="w-full py-3 rounded-lg text-sm font-medium bg-[#1E1E1F] text-gray-300 border border-[#2A2A2A] hover:bg-[#151515] disabled:opacity-50"
+                  onClick={
+                    isPlanActive ? handleStopPosition : handleResumePosition
+                  }
+                  disabled={
+                    isStoppingPlan || isCancellingPlan || isResumingPlan
+                  }
+                >
+                  {isPlanActive
+                    ? isStoppingPlan
+                      ? "Pausing..."
+                      : "Pause DCA"
+                    : isResumingPlan
+                    ? "Resuming..."
+                    : "Resume DCA"}
+                </button>
+                <button
+                  className="w-full py-3 rounded-lg text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/15 disabled:opacity-50"
+                  onClick={handleDeletePosition}
+                  disabled={
+                    isCancelling ||
+                    isCancellingPlan ||
+                    isStoppingPlan ||
+                    isResumingPlan
+                  }
+                >
+                  {isCancelling || isCancellingPlan
+                    ? "Deleting..."
+                    : "Delete position"}
+                </button>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Spacer for floating button */}
       <div className="h-24" />
 
@@ -612,6 +716,11 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
           setPendingPlanHash(planHash);
           setShowSetFrequency(false);
           setTimeout(() => setShowTokenApproval(true), 200);
+          // After creating a plan, refetch and refresh UI
+          setTimeout(async () => {
+            await refetchPlanData();
+            router.refresh();
+          }, 800);
         }}
         tokenOut={tokenAddress as `0x${string}`}
         fid={context?.user?.fid}
@@ -622,6 +731,11 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
         onApprove={(amount) => {
           setShowTokenApproval(false);
           setPendingPlanHash(undefined);
+          // After approval, refresh plan/allowance dependent UI
+          setTimeout(async () => {
+            await refetchPlanData();
+            router.refresh();
+          }, 800);
         }}
         token="USDC"
         defaultAmount={frequencyData?.amount || 100}

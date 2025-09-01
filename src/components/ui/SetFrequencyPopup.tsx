@@ -93,6 +93,15 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
     console.log("Debug - receipt:", receipt);
   }, [txHash, isConfirmed, isConfirming, receipt]);
 
+  // Sync initial values when opening (preserve current plan values on edit)
+  React.useEffect(() => {
+    if (open) {
+      setAmount(initialAmount);
+      setFrequency(initialFrequency);
+      setAmountError(false);
+    }
+  }, [open, initialAmount, initialFrequency]);
+
   const getFrequencyInSeconds = (frequency: string): number => {
     switch (frequency) {
       case "5 Minutes":
@@ -162,57 +171,77 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         return;
       }
 
-      // Create new plan
+      // Create or reactivate plan via single API flow
       console.log("Creating plan...");
       console.log("USDC_ADDRESS", USDC_ADDRESS);
       console.log("tokenOut", tokenOut);
       console.log("address", address);
-
-      const hash = await createPlan({
-        address: DCA_EXECUTOR_ADDRESS as `0x${string}`,
-        abi: DCA_ABI.abi,
-        functionName: "createPlan",
-        args: [tokenOut, address],
-      });
-
-      console.log("Txn hash:", hash);
-      setTxHash(hash);
-
-      // Wait for transaction confirmation
-      const receipt = await waitForTransactionReceipt(publicClient, {
-        hash: hash,
-      });
-      console.log("Receipt received:", receipt);
-
-      // Call API to create plan in database (planHash will be generated offchain)
-      const response = await fetch("/api/plan/createPlan", {
+      // Step 1: Ask API whether tx is required (also reactivates if stopped)
+      const preResp = await fetch("/api/plan/createPlan", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userAddress: address,
           tokenOutAddress: tokenOut,
           recipient: address,
-          amountIn: amount * 1000000, // Convert to wei for USDC (6 decimals)
+          amountIn: amount * 1000000,
           frequency: getFrequencyInSeconds(frequency),
-          fid: fid,
+          fid,
         }),
       });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || "Failed to create plan in database");
+      const preData = await preResp.json();
+      if (!preData.success) {
+        throw new Error(preData.error || "Failed to prepare plan");
       }
 
-      console.log("Plan created successfully");
+      let activePlanHash: string | undefined = preData.data?.planHash;
+
+      if (preData.txRequired) {
+        // Do on-chain create
+        const hash = await createPlan({
+          address: DCA_EXECUTOR_ADDRESS as `0x${string}`,
+          abi: DCA_ABI.abi,
+          functionName: "createPlan",
+          args: [tokenOut, address],
+        });
+        setTxHash(hash);
+        await waitForTransactionReceipt(publicClient, { hash });
+
+        // Finalize in DB
+        const finalResp = await fetch("/api/plan/createPlan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userAddress: address,
+            tokenOutAddress: tokenOut,
+            recipient: address,
+            amountIn: amount * 1000000,
+            frequency: getFrequencyInSeconds(frequency),
+            fid,
+            finalize: true,
+          }),
+        });
+        const data = await finalResp.json();
+        if (!data.success) {
+          throw new Error(data.error || "Failed to create plan in database");
+        }
+        activePlanHash = data.data.planHash;
+        console.log("Plan created successfully");
+      } else {
+        console.log("Plan reactivated successfully");
+      }
 
       // Execute initial investment if user has sufficient allowance
       const requiredAmount = BigInt(amount * 1000000); // Convert to USDC decimals
-      if (currentAllowance && currentAllowance >= requiredAmount) {
+      if (
+        currentAllowance &&
+        currentAllowance >= requiredAmount &&
+        activePlanHash
+      ) {
         console.log("Executing initial investment...");
-        const investResult = await executeInitialInvestment(data.data.planHash);
+        const investResult = await executeInitialInvestment(
+          activePlanHash as `0x${string}`
+        );
 
         if (investResult.success) {
           console.log(
@@ -232,7 +261,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         );
       }
 
-      onConfirm(amount, frequency, data.data.planHash);
+      onConfirm(amount, frequency, activePlanHash as `0x${string}`);
       setIsLoading(false);
     } catch (error) {
       console.error("Error creating plan:", error);

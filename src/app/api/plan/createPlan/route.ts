@@ -11,6 +11,7 @@ export async function POST(req: Request) {
       amountIn,
       frequency,
       fid,
+      finalize,
     } = await req.json();
 
     // Validation
@@ -87,7 +88,7 @@ export async function POST(req: Request) {
     });
 
     if (existingPlan) {
-      // If plan exists but is inactive, reactivate it
+      // If plan exists but is inactive, reactivate it (DB only)
       if (!existingPlan.active) {
         const reactivatedPlan = await prisma.dCAPlan.update({
           where: { planHash },
@@ -95,35 +96,39 @@ export async function POST(req: Request) {
             active: true,
             amountIn,
             frequency,
-            lastExecutedAt: 0, // Reset execution time for new investment
-            createdAt: new Date(), // Reset creation time for reactivated plan
+            lastExecutedAt: 0,
+            createdAt: new Date(),
           },
-          include: {
-            user: true,
-            tokenOut: true,
-          },
+          include: { user: true, tokenOut: true },
         });
 
-        return NextResponse.json(
-          {
-            success: true,
-            data: reactivatedPlan,
-            message: "Plan reactivated successfully",
-          },
-          { status: 200 }
-        );
+        return NextResponse.json({
+          success: true,
+          reactivated: true,
+          txRequired: false,
+          data: reactivatedPlan,
+          message: "Plan reactivated successfully",
+        });
       }
 
       // If plan exists and is active, return error
       return NextResponse.json(
-        {
-          success: false,
-          error: "Plan already exists and is active",
-        },
+        { success: false, error: "Plan already exists and is active" },
         { status: 409 }
       );
     }
 
+    // If no existing plan and client has not finalized, instruct to do on-chain tx
+    if (!finalize) {
+      return NextResponse.json({
+        success: true,
+        txRequired: true,
+        planHash,
+        message: "On-chain createPlan required before finalizing",
+      });
+    }
+
+    // Finalize: create the plan in DB after on-chain tx
     const newPlan = await prisma.dCAPlan.create({
       data: {
         planHash,
@@ -134,19 +139,14 @@ export async function POST(req: Request) {
         frequency,
         lastExecutedAt: 0,
       },
-      include: {
-        user: true,
-        tokenOut: true,
-      },
+      include: { user: true, tokenOut: true },
     });
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: newPlan,
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({
+      success: true,
+      txRequired: false,
+      data: newPlan,
+    });
   } catch (error: Error | unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";

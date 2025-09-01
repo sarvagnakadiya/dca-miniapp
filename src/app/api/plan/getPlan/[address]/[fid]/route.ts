@@ -30,18 +30,16 @@ export async function GET(
       );
     }
 
-    // Get user's plans for this token if user exists (only for calculations)
+    // Get user's plans for this token if user exists (include active and paused)
     let userPlans: DCAPlan[] = [];
     if (user) {
       userPlans = await prisma.dCAPlan.findMany({
         where: {
           tokenOutAddress: normalizedAddress,
           userWallet: user.wallet,
-          active: true,
         },
-        include: {
-          executions: true,
-        },
+        include: { executions: true },
+        orderBy: { createdAt: "desc" },
       });
     }
 
@@ -123,7 +121,8 @@ export async function GET(
         marketCapUsd,
         volume24h,
         totalSupply,
-        hasActivePlan: userPlans.length > 0,
+        hasActivePlan: userPlans.some((p) => p.active),
+        hasPlan: userPlans.length > 0,
         plansOut: userPlans,
       },
     });

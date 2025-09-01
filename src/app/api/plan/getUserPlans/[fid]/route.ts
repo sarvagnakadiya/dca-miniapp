@@ -56,13 +56,12 @@ export async function GET(
       // Return empty response instead of error, as user might not have plans yet
     }
 
-    // Get user's active plans by fid
+    // Get user's plans (active and paused) by fid
     const userPlans = await prisma.dCAPlan.findMany({
       where: {
         user: {
           fid: Number(fid),
         },
-        active: true,
       },
       include: {
         tokenOut: true,
@@ -85,10 +84,8 @@ export async function GET(
     }
 
     userPlans.forEach((plan) => {
-      // Only mark tokens with active plans
-      if (plan.active) {
-        tokenPlanMap.set(plan.tokenOut.address, true);
-      }
+      // Mark tokens that have any plan (active or paused)
+      tokenPlanMap.set(plan.tokenOut.address, true);
 
       // Store the earliest createdAt for this token (in case of multiple plans)
       const tokenAddress = plan.tokenOut.address;
@@ -181,7 +178,10 @@ export async function GET(
         wrappedName: token.wrappedName,
         wrappedSymbol: token.wrappedSymbol,
         originalAddress: token.originalAddress,
-        hasActivePlan: tokenPlanMap.has(token.address),
+        hasPlan: tokenPlanMap.has(token.address),
+        isActive: userPlans.some(
+          (p) => p.tokenOut.address === token.address && p.active
+        ),
         planCreatedAt:
           tokenPlanCreatedAtMap.get(token.address)?.toISOString() || null,
         totalInvestedValue,

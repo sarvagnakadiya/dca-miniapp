@@ -20,7 +20,8 @@ interface Token {
   wrappedName: string | null;
   wrappedSymbol: string | null;
   originalAddress: string | null;
-  hasActivePlan: boolean;
+  hasPlan: boolean;
+  isActive: boolean;
   planCreatedAt: string | null;
   totalInvestedValue: number;
   currentValue: number;
@@ -139,7 +140,7 @@ const Home = () => {
   const totalPortfolioBalance =
     portfolioData?.portfolioCurrentValue ||
     tokens
-      .filter((token) => token.hasActivePlan)
+      .filter((token) => token.hasPlan)
       .reduce((sum, token) => sum + (token.currentValue || 0), 0);
 
   // Nice scale util (1-2-5) for dynamic Y axis
@@ -240,12 +241,20 @@ const Home = () => {
           console.log("Fetched tokens:", result.data);
           console.log("Portfolio data:", result.portfolio);
           console.log(
-            "Tokens with active plans:",
-            result.data.filter((token: Token) => token.hasActivePlan)
+            "Active positions:",
+            result.data.filter(
+              (token: Token) => token.hasPlan && token.isActive
+            )
           );
           console.log(
-            "Tokens without active plans:",
-            result.data.filter((token: Token) => !token.hasActivePlan)
+            "Paused positions:",
+            result.data.filter(
+              (token: Token) => token.hasPlan && !token.isActive
+            )
+          );
+          console.log(
+            "Explore tokens (no plan yet):",
+            result.data.filter((token: Token) => !token.hasPlan)
           );
           setTokens(result.data);
           setPortfolioData(result.portfolio || null);
@@ -444,9 +453,10 @@ const Home = () => {
             <PositionTileSkeleton />
             <PositionTileSkeleton />
           </>
-        ) : tokens.filter((token) => token.hasActivePlan).length > 0 ? (
+        ) : tokens.filter((token) => token.hasPlan && token.isActive).length >
+          0 ? (
           tokens
-            .filter((token) => token.hasActivePlan)
+            .filter((token) => token.hasPlan && token.isActive)
             .map((token) => (
               <div
                 key={token.id || token.address}
@@ -472,6 +482,36 @@ const Home = () => {
         )}
       </div>
 
+      {/* Paused Positions */}
+      {tokens.some((t) => t.hasPlan && !t.isActive) && (
+        <div className="mt-8">
+          <h2 className="text-lg font-medium mb-4">Paused positions</h2>
+          {tokens
+            .filter((t) => t.hasPlan && !t.isActive)
+            .map((token) => (
+              <div
+                key={token.id || token.address}
+                className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
+                onClick={() => setOpenTokenAddress(token.address)}
+              >
+                <InvestedPositionTile
+                  icon={token.image || token.symbol?.[0] || "₿"}
+                  iconBgColor="bg-gray-600"
+                  name={token.name}
+                  currentPrice={formatPrice(token.currentPrice)}
+                  startedAgo={
+                    token.planCreatedAt
+                      ? formatTimeAgo(token.planCreatedAt)
+                      : "Paused"
+                  }
+                  investedAmount={formatCurrency(token.totalInvestedValue)}
+                  currentValue={formatCurrency(token.currentValue)}
+                />
+              </div>
+            ))}
+        </div>
+      )}
+
       {/* Explore More Tokens */}
       <div>
         <h2 className="text-lg font-medium mb-4">Explore more tokens</h2>
@@ -486,7 +526,7 @@ const Home = () => {
           </>
         ) : (
           tokens
-            .filter((token) => !token.hasActivePlan)
+            .filter((token) => !token.hasPlan)
             .map((token) => (
               <div
                 key={token.id || token.address}
@@ -506,6 +546,7 @@ const Home = () => {
             ))
         )}
       </div>
+
       {openTokenAddress && (
         <div className="fixed inset-0 z-50 bg-black overflow-y-auto">
           <TokenView
