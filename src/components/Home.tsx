@@ -321,7 +321,7 @@ const Home = () => {
                     {portfolioData.portfolioPercentChange.toFixed(2)}%
                   </span>
                 </div>
-                <div className="absolute right-4 bg-[#1E1E1F] border border-[#2A2A2A] rounded-full p-1 inline-flex shadow-sm mb-5">
+                <div className="absolute right-4 bg-[#1E1E1F] border border-[#2A2A2A] rounded-full p-1 inline-flex shadow-sm mt-[-30px]">
                   <button
                     onClick={() => setChartMode("value")}
                     className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
@@ -375,8 +375,20 @@ const Home = () => {
                           (d) => ((d.currentValue - first) / first) * 100
                         );
                       })();
-                const minVal = Math.min(...values);
-                const maxVal = Math.max(...values);
+
+                const investedValues =
+                  chartMode === "value"
+                    ? data.map((d) => d.totalInvestedValue ?? 0)
+                    : [];
+
+                const minVal =
+                  chartMode === "value"
+                    ? Math.min(...values, ...investedValues)
+                    : Math.min(...values);
+                const maxVal =
+                  chartMode === "value"
+                    ? Math.max(...values, ...investedValues)
+                    : Math.max(...values);
                 const { niceMin, niceMax, ticks } = calculateNiceScale(
                   minVal,
                   maxVal,
@@ -385,8 +397,8 @@ const Home = () => {
 
                 const width = 400;
                 const height = 140;
-                const paddingLeft = 50; // slightly increased for y-axis labels
-                const paddingRight = 10; // reduced right padding
+                const paddingLeft = 38; // tighter left padding to reduce empty space
+                const paddingRight = 8; // slightly reduced right padding
                 const paddingTop = 10;
                 const paddingBottom = 10;
                 const chartHeight = height - paddingTop - paddingBottom;
@@ -398,7 +410,7 @@ const Home = () => {
                   (1 - (v - niceMin) / Math.max(1e-9, niceMax - niceMin)) *
                     chartHeight;
 
-                // Build path
+                // Build path(s)
                 const path = data
                   .map((d, i) => {
                     const value =
@@ -416,6 +428,16 @@ const Home = () => {
                     return `${i === 0 ? "M" : "L"} ${x(i)} ${y(value)}`;
                   })
                   .join(" ");
+
+                const investedPath =
+                  chartMode === "value"
+                    ? data
+                        .map((d, i) => {
+                          const value = d.totalInvestedValue ?? 0;
+                          return `${i === 0 ? "M" : "L"} ${x(i)} ${y(value)}`;
+                        })
+                        .join(" ")
+                    : "";
 
                 // Area under line
                 const innerRight = width - paddingRight;
@@ -475,11 +497,19 @@ const Home = () => {
                         stroke="#f97316"
                         strokeWidth="3"
                       />
+                      {chartMode === "value" && (
+                        <path
+                          d={investedPath}
+                          fill="none"
+                          stroke="#60a5fa"
+                          strokeWidth="2"
+                        />
+                      )}
                     </svg>
 
                     <div
                       className="pointer-events-none absolute left-0 top-0 h-full flex flex-col justify-between items-end text-[11px] text-gray-400 pr-2"
-                      style={{ width: paddingLeft - 5 }}
+                      style={{ width: paddingLeft - 2 }}
                     >
                       {ticks
                         .slice()
@@ -487,7 +517,12 @@ const Home = () => {
                         .map((t) => (
                           <span key={t}>
                             {chartMode === "value"
-                              ? formatCurrency(t)
+                              ? new Intl.NumberFormat("en-US", {
+                                  style: "currency",
+                                  currency: "USD",
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 2,
+                                }).format(t)
                               : `${Number(t.toFixed(0))}%`}
                           </span>
                         ))}
@@ -497,6 +532,35 @@ const Home = () => {
               })()}
             </div>
           )}
+        {/* Legend outside chart */}
+        {chartMode === "value" ? (
+          <div className="mt-3 flex justify-center gap-6 items-center text-[12px] text-gray-300">
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-block w-3 h-3 rounded-sm"
+                style={{ backgroundColor: "#f97316" }}
+              />
+              <span>Portfolio Value</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-block w-3 h-3 rounded-sm"
+                style={{ backgroundColor: "#60a5fa" }}
+              />
+              <span>Total Invested</span>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-3 flex justify-center items-center text-[12px] text-gray-300">
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-block w-3 h-3 rounded-sm"
+                style={{ backgroundColor: "#f97316" }}
+              />
+              <span>Percent Change</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* DCA Positions */}
