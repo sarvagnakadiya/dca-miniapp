@@ -5,6 +5,7 @@ import { useMiniApp } from "~/components/providers/FrameProvider";
 import { SetFrequencyPopup } from "~/components/ui/SetFrequencyPopup";
 import { TokenApprovalPopup } from "~/components/ui/TokenApprovalPopup";
 import { BalanceDisplay } from "~/components/ui/BalanceDisplay";
+import TokenViewSkeleton from "~/components/ui/TokenViewSkeleton";
 import Image from "next/image";
 import sdk from "@farcaster/miniapp-sdk";
 import { useAccount, useWriteContract } from "wagmi";
@@ -89,6 +90,7 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
   const { context, isSDKLoaded } = useMiniApp();
   const { address } = useAccount();
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
   const [showSetFrequency, setShowSetFrequency] = useState(false);
   const [showTokenApproval, setShowTokenApproval] = useState(false);
   const [showEditFrequency, setShowEditFrequency] = useState(false);
@@ -307,6 +309,7 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
     const fetchTokenData = async () => {
       if (tokenAddress && context?.user?.fid) {
         try {
+          setIsLoading(true);
           const response = await fetch(
             `/api/plan/getPlan/${tokenAddress}/${context.user.fid}`
           );
@@ -346,6 +349,8 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
           }
         } catch (error) {
           console.error("Error fetching token data:", error);
+        } finally {
+          setIsLoading(false);
         }
       }
     };
@@ -360,6 +365,10 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
         Loading...
       </div>
     );
+  }
+
+  if (isLoading) {
+    return <TokenViewSkeleton />;
   }
 
   return (
