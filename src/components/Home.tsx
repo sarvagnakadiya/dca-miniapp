@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useMiniApp } from "~/components/providers/FrameProvider";
 import { useRouter } from "next/navigation";
 import sdk from "@farcaster/miniapp-sdk";
@@ -136,6 +136,30 @@ const Home = () => {
   const router = useRouter();
   const [openTokenAddress, setOpenTokenAddress] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<"value" | "percent">("value");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const touchStartYRef = useRef<number | null>(null);
+  const isDraggingRef = useRef(false);
+  const pullDistanceRef = useRef(0);
+  useEffect(() => {
+    pullDistanceRef.current = pullDistance;
+  }, [pullDistance]);
+
+  const PULL_THRESHOLD = 70;
+  const [dotCount, setDotCount] = useState(0);
+  useEffect(() => {
+    const computeDots = () => {
+      if (typeof window === "undefined") return;
+      const width = window.innerWidth || 320;
+      const spacing = 8; // px between dots
+      let count = Math.max(11, Math.floor(width / spacing));
+      if (count % 2 === 0) count += 1; // odd for a center dot
+      setDotCount(count);
+    };
+    computeDots();
+    window.addEventListener("resize", computeDots);
+    return () => window.removeEventListener("resize", computeDots);
+  }, []);
 
   // Use portfolio data from API if available, otherwise fallback to calculated value
   const totalPortfolioBalance =
@@ -189,6 +213,39 @@ const Home = () => {
     return { niceMin, niceMax, tickSpacing, ticks };
   };
 
+  const fetchTokens = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent === true;
+      if (!context?.user?.fid) return;
+
+      try {
+        if (!silent) setIsLoading(true);
+        const response = await fetch(
+          `/api/plan/getUserPlans/${context.user.fid}`
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.success) {
+          setTokens(result.data);
+          setPortfolioData(result.portfolio || null);
+          await sdk.actions.ready({});
+        } else {
+          console.error("API returned error:", result.error);
+        }
+      } catch (error) {
+        console.error("Error fetching tokens:", error);
+      } finally {
+        if (!silent) setIsLoading(false);
+      }
+    },
+    [context]
+  );
+
   useEffect(() => {
     console.log("fetching tokens");
     console.log("context:::", context);
@@ -220,58 +277,43 @@ const Home = () => {
 
     logUserVisit();
 
-    const fetchTokens = async () => {
-      if (!context?.user?.fid) return;
-
-      try {
-        console.log("Fetching data...");
-        setIsLoading(true);
-        console.log("Fetching data for FID:", context.user.fid);
-        const response = await fetch(
-          `/api/plan/getUserPlans/${context.user.fid}`
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        console.log("API response:", result);
-
-        if (result.success) {
-          console.log("Fetched tokens:", result.data);
-          console.log("Portfolio data:", result.portfolio);
-          console.log(
-            "Active positions:",
-            result.data.filter(
-              (token: Token) => token.hasPlan && token.isActive
-            )
-          );
-          console.log(
-            "Paused positions:",
-            result.data.filter(
-              (token: Token) => token.hasPlan && !token.isActive
-            )
-          );
-          console.log(
-            "Explore tokens (no plan yet):",
-            result.data.filter((token: Token) => !token.hasPlan)
-          );
-          setTokens(result.data);
-          setPortfolioData(result.portfolio || null);
-          await sdk.actions.ready({});
-        } else {
-          console.error("API returned error:", result.error);
-        }
-      } catch (error) {
-        console.error("Error fetching tokens:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchTokens();
-  }, [context, addFrame, added]);
+  }, [context, addFrame, added, fetchTokens]);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (typeof window !== "undefined" && window.scrollY <= 0) {
+      touchStartYRef.current = e.touches[0].clientY;
+      isDraggingRef.current = true;
+      setPullDistance(0);
+    } else {
+      touchStartYRef.current = null;
+      isDraggingRef.current = false;
+    }
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!isDraggingRef.current || touchStartYRef.current === null) return;
+    const currentY = e.touches[0].clientY;
+    const delta = currentY - touchStartYRef.current;
+    if (delta > 0) {
+      const damped = Math.min(120, delta);
+      setPullDistance(damped);
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  const onTouchEnd = async () => {
+    const pulled = pullDistanceRef.current;
+    if (pulled > PULL_THRESHOLD && !isRefreshing) {
+      setIsRefreshing(true);
+      await fetchTokens({ silent: true });
+      setIsRefreshing(false);
+    }
+    setPullDistance(0);
+    isDraggingRef.current = false;
+    touchStartYRef.current = null;
+  };
 
   // Show loading if SDK is not loaded yet
   if (!isSDKLoaded) {
@@ -283,7 +325,71 @@ const Home = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0C0C0C] text-white p-4 font-sans">
+    <div
+      className="min-h-screen bg-[#0C0C0C] text-white p-4 font-sans"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      <div
+        className="fixed inset-x-0 top-0 z-50 pointer-events-none"
+        style={{
+          height: isRefreshing || pullDistance > 0 ? 2 : 0,
+          transition: "height 120ms ease",
+        }}
+      >
+        <div className="relative w-full h-full">
+          {!isRefreshing && pullDistance > 0 && (
+            <div
+              className="absolute top-0 left-0 bg-orange-500"
+              style={{
+                height: 2,
+                width: `${Math.min(
+                  100,
+                  (pullDistance / PULL_THRESHOLD) * 100
+                )}%`,
+                boxShadow: "0 0 6px rgba(249, 115, 22, 0.7)",
+                transition: "width 120ms ease",
+              }}
+            />
+          )}
+          {isRefreshing && (
+            <div className="absolute inset-x-0 top-0 h-[2px] flex items-start justify-between">
+              {Array.from({ length: dotCount }).map((_, idx) => {
+                const center = Math.floor(Math.max(1, dotCount) / 2);
+                const distance = Math.abs(idx - center);
+                const delayMs = distance * 60;
+                return (
+                  <span
+                    key={idx}
+                    className="dotLine"
+                    style={{ animationDelay: `${delayMs}ms` }}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <style jsx>{`
+          .dotLine {
+            width: 2px;
+            height: 2px;
+            border-radius: 9999px;
+            background: #f97316;
+            box-shadow: 0 0 6px rgba(249, 115, 22, 0.7);
+            animation: fade 900ms ease-in-out infinite;
+          }
+          @keyframes fade {
+            0%,
+            100% {
+              opacity: 0.25;
+            }
+            50% {
+              opacity: 1;
+            }
+          }
+        `}</style>
+      </div>
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-xl font-medium">Home</h1>
