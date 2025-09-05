@@ -11,10 +11,12 @@ const DCA_EXECUTOR_ADDRESS = process.env
 
 interface BalanceDisplayProps {
   className?: string;
+  onOpenApproval?: () => void;
 }
 
 export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({
   className = "",
+  onOpenApproval,
 }) => {
   const { address } = useAccount();
   const { context } = useMiniApp();
@@ -59,7 +61,10 @@ export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({
 
   return (
     <div className={`flex items-center space-x-3 ${className}`}>
-      <div className="flex items-center bg-gray-800 rounded-lg px-3 py-1 text-sm">
+      <div
+        className="flex items-center bg-gray-800 rounded-lg px-3 py-1 text-sm cursor-pointer hover:bg-gray-700 transition-colors"
+        onClick={() => onOpenApproval?.()}
+      >
         <Image
           src="/usdc.png"
           alt="USDC"

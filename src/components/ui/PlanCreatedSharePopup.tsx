@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import { BottomSheetPopup } from "./BottomSheetPopup";
 import { Button } from "./Button";
 import { useMiniApp } from "../providers/FrameProvider";
@@ -10,6 +11,14 @@ interface PlanCreatedSharePopupProps {
   frequencyLabel: string;
 }
 
+const IMAGES = [
+  "/dca1.png",
+  "/dca2.png",
+  "/dca3.png",
+  "/dca4.png",
+  "/dca5.png",
+] as const;
+
 export const PlanCreatedSharePopup: React.FC<PlanCreatedSharePopupProps> = ({
   open,
   onClose,
@@ -18,18 +27,11 @@ export const PlanCreatedSharePopup: React.FC<PlanCreatedSharePopupProps> = ({
 }) => {
   const { openUrl } = useMiniApp();
   const [imageIndex, setImageIndex] = React.useState(0);
-  const images = [
-    "/dca1.png",
-    "/dca2.png",
-    "/dca3.png",
-    "/dca4.png",
-    "/dca5.png",
-  ];
 
   React.useEffect(() => {
     if (!open) return;
     const interval = setInterval(() => {
-      setImageIndex((prev) => (prev + 1) % images.length);
+      setImageIndex((prev) => (prev + 1) % IMAGES.length);
     }, 400);
     return () => clearInterval(interval);
   }, [open]);
@@ -54,7 +56,14 @@ export const PlanCreatedSharePopup: React.FC<PlanCreatedSharePopupProps> = ({
       </div>
       <div className="w-full flex justify-center m-4">
         <div className="border-2 border-orange-500 p-4 rounded-full">
-          <img src={images[imageIndex]} alt="DCA logo" className="w-20 h-20" />
+          <Image
+            src={IMAGES[imageIndex]}
+            alt="DCA logo"
+            width={80}
+            height={80}
+            className="w-20 h-20"
+            priority
+          />
         </div>
       </div>
       <div className="space-y-3 mb-6">

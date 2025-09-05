@@ -7,6 +7,7 @@ import InvestedPositionTile from "./ui/InvestedPositionTile";
 import ExplorePositionTile from "./ui/ExplorePositionTile";
 import PositionTileSkeleton from "./ui/PositionTileSkeleton";
 import TokenView from "~/components/TokenView";
+import { TokenApprovalPopup } from "./ui/TokenApprovalPopup";
 
 interface Token {
   id: string;
@@ -136,6 +137,7 @@ const Home = () => {
   const router = useRouter();
   const [openTokenAddress, setOpenTokenAddress] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<"value" | "percent">("value");
+  const [isApprovalOpen, setIsApprovalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const touchStartYRef = useRef<number | null>(null);
@@ -394,7 +396,7 @@ const Home = () => {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-xl font-medium">Home</h1>
         <div className="flex items-center space-x-3">
-          <BalanceDisplay />
+          <BalanceDisplay onOpenApproval={() => setIsApprovalOpen(true)} />
         </div>
       </div>
 
@@ -782,6 +784,12 @@ const Home = () => {
           />
         </div>
       )}
+
+      <TokenApprovalPopup
+        open={isApprovalOpen}
+        onClose={() => setIsApprovalOpen(false)}
+        onApprove={() => setIsApprovalOpen(false)}
+      />
     </div>
   );
 };
