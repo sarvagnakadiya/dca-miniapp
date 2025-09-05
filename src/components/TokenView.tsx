@@ -11,6 +11,7 @@ import sdk from "@farcaster/miniapp-sdk";
 import { useAccount, useWriteContract } from "wagmi";
 import DCA_ABI from "~/lib/contracts/DCAForwarder.json";
 import { useRouter } from "next/navigation";
+import PlanCreatedSharePopup from "~/components/ui/PlanCreatedSharePopup";
 
 interface TokenStats {
   oneYearAgo: number;
@@ -87,12 +88,13 @@ interface TokenViewProps {
 
 const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
   const [selectedPeriod, setSelectedPeriod] = useState("1h");
-  const { context, isSDKLoaded } = useMiniApp();
+  const { context, isSDKLoaded, openUrl } = useMiniApp();
   const { address } = useAccount();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [showSetFrequency, setShowSetFrequency] = useState(false);
   const [showTokenApproval, setShowTokenApproval] = useState(false);
+  const [showPlanCreatedShare, setShowPlanCreatedShare] = useState(false);
   const [showEditFrequency, setShowEditFrequency] = useState(false);
   const [activePlan, setActivePlan] = useState<Plan | null>(null);
 
@@ -110,6 +112,9 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
   const [pendingPlanHash, setPendingPlanHash] = useState<string | undefined>(
     undefined
   );
+  const [approvalNeededForNewPlan, setApprovalNeededForNewPlan] = useState<
+    boolean | undefined
+  >(undefined);
   const [token, setToken] = useState<Token>({
     name: "",
     icon: "",
@@ -136,6 +141,18 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
     useWriteContract();
   const DCA_EXECUTOR_ADDRESS = process.env
     .NEXT_PUBLIC_DCA_EXECUTOR_ADDRESS as `0x${string}`;
+
+  const handleSharePosition = async () => {
+    try {
+      const text = `I started my DCA journey on $${token.symbol.toUpperCase()}.\nInvest smartly. Stop watching, start stacking.`;
+      const url = `https://warpcast.com/~/compose?text=${encodeURIComponent(
+        text
+      )}&embeds[]=${encodeURIComponent("https://dca-miniapp.vercel.app/")}`;
+      await openUrl(url);
+    } catch (e) {
+      console.error("Failed to open share compose:", e);
+    }
+  };
 
   const refetchPlanData = async () => {
     try {
@@ -652,39 +669,125 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
           {(() => {
             const isPlanActive = Boolean(activePlan?.active);
             return (
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  className="w-full py-3 rounded-lg text-sm font-medium bg-[#1E1E1F] text-gray-300 border border-[#2A2A2A] hover:bg-[#151515] disabled:opacity-50"
-                  onClick={
-                    isPlanActive ? handleStopPosition : handleResumePosition
-                  }
-                  disabled={
-                    isStoppingPlan || isCancellingPlan || isResumingPlan
-                  }
-                >
-                  {isPlanActive
-                    ? isStoppingPlan
-                      ? "Pausing..."
-                      : "Pause DCA"
-                    : isResumingPlan
-                    ? "Resuming..."
-                    : "Resume DCA"}
-                </button>
-                <button
-                  className="w-full py-3 rounded-lg text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/15 disabled:opacity-50"
-                  onClick={handleDeletePosition}
-                  disabled={
-                    isCancelling ||
-                    isCancellingPlan ||
-                    isStoppingPlan ||
-                    isResumingPlan
-                  }
-                >
-                  {isCancelling || isCancellingPlan
-                    ? "Deleting..."
-                    : "Delete position"}
-                </button>
-              </div>
+              <>
+                <div className="mb-3">
+                  <Button
+                    className="w-full py-3 rounded-lg text-sm font-semibold bg-orange-900/70 hover:bg-orange-800/80 text-white"
+                    onClick={handleSharePosition}
+                  >
+                    Share your DCA position
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    className="w-full py-3 rounded-lg text-sm font-medium bg-[#1E1E1F] text-gray-300 border border-[#2A2A2A] hover:bg-[#151515] disabled:opacity-50"
+                    onClick={
+                      isPlanActive ? handleStopPosition : handleResumePosition
+                    }
+                    disabled={
+                      isStoppingPlan || isCancellingPlan || isResumingPlan
+                    }
+                  >
+                    {isPlanActive ? (
+                      isStoppingPlan ? (
+                        "Pausing..."
+                      ) : (
+                        <span className="flex items-center justify-center">
+                          <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <rect
+                              x="6"
+                              y="4"
+                              width="4"
+                              height="16"
+                              fill="#ffffff"
+                            />
+                            <rect
+                              x="14"
+                              y="4"
+                              width="4"
+                              height="16"
+                              fill="#ffffff"
+                            />
+                          </svg>
+                          <span className="sr-only">Pause</span>
+                        </span>
+                      )
+                    ) : isResumingPlan ? (
+                      "Resuming..."
+                    ) : (
+                      <span className="flex items-center justify-center">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <polygon points="5,3 19,12 5,21" fill="#ffffff" />
+                        </svg>
+                        <span className="sr-only">Resume</span>
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    className="w-full py-3 rounded-lg text-sm font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/15 disabled:opacity-50"
+                    onClick={handleDeletePosition}
+                    disabled={
+                      isCancelling ||
+                      isCancellingPlan ||
+                      isStoppingPlan ||
+                      isResumingPlan
+                    }
+                  >
+                    {isCancelling || isCancellingPlan ? (
+                      "Deleting..."
+                    ) : (
+                      <span className="flex items-center justify-center">
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M3 6h18"
+                            stroke="#f87171"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                            stroke="#f87171"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+                            stroke="#f87171"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M10 11v6M14 11v6"
+                            stroke="#f87171"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <span className="sr-only">Delete</span>
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </>
             );
           })()}
         </div>
@@ -720,11 +823,16 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
       <SetFrequencyPopup
         open={showSetFrequency}
         onClose={() => setShowSetFrequency(false)}
-        onConfirm={(amount, frequency, planHash) => {
+        onConfirm={(amount, frequency, planHash, approvalNeeded) => {
           setFrequencyData({ amount, frequency });
           setPendingPlanHash(planHash);
+          setApprovalNeededForNewPlan(approvalNeeded);
           setShowSetFrequency(false);
-          setTimeout(() => setShowTokenApproval(true), 200);
+          if (approvalNeeded) {
+            setTimeout(() => setShowTokenApproval(true), 200);
+          } else {
+            setTimeout(() => setShowPlanCreatedShare(true), 300);
+          }
           // After creating a plan, refetch and refresh UI
           setTimeout(async () => {
             await refetchPlanData();
@@ -740,6 +848,10 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
         onApprove={(amount) => {
           setShowTokenApproval(false);
           setPendingPlanHash(undefined);
+          if (approvalNeededForNewPlan) {
+            setTimeout(() => setShowPlanCreatedShare(true), 300);
+          }
+          setApprovalNeededForNewPlan(undefined);
           // After approval, refresh plan/allowance dependent UI
           setTimeout(async () => {
             await refetchPlanData();
@@ -751,6 +863,12 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
         tokenOutAddress={tokenAddress as `0x${string}`}
         fid={context?.user?.fid}
         planHash={pendingPlanHash}
+      />
+      <PlanCreatedSharePopup
+        open={showPlanCreatedShare}
+        onClose={() => setShowPlanCreatedShare(false)}
+        tokenSymbol={token.symbol}
+        frequencyLabel={frequencyData?.frequency || "Daily"}
       />
       {/* Edit Frequency Popup (reusing SetFrequencyPopup) */}
       <SetFrequencyPopup

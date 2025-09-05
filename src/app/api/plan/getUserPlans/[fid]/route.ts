@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import { prisma } from "~/lib/prisma";
 import { DCAExecution, Token } from "~/lib/types";
 
@@ -15,7 +17,7 @@ export async function GET(
       console.error("Invalid FID:", fid);
       return NextResponse.json(
         { success: false, error: "Invalid FID provided" },
-        { status: 400 }
+        { status: 400, headers: { "Cache-Control": "no-store" } }
       );
     }
 
@@ -27,15 +29,18 @@ export async function GET(
 
     if (tokens.length === 0) {
       console.log("No tokens found in database, returning empty response");
-      return NextResponse.json({
-        success: true,
-        data: [],
-        portfolio: {
-          portfolioCurrentValue: 0,
-          portfolioInvestedAmount: 0,
-          portfolioPercentChange: 0,
+      return NextResponse.json(
+        {
+          success: true,
+          data: [],
+          portfolio: {
+            portfolioCurrentValue: 0,
+            portfolioInvestedAmount: 0,
+            portfolioPercentChange: 0,
+          },
         },
-      });
+        { headers: { "Cache-Control": "no-store" } }
+      );
     }
 
     // Filter out USDC token
@@ -276,14 +281,16 @@ export async function GET(
       dataLength: response.data.length,
     });
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, {
+      headers: { "Cache-Control": "no-store" },
+    });
   } catch (error) {
     console.error("Error in getUserPlans API:", error);
     const errorMessage =
       error instanceof Error ? error.message : "An unknown error occurred";
     return NextResponse.json(
       { success: false, error: errorMessage },
-      { status: 500 }
+      { status: 500, headers: { "Cache-Control": "no-store" } }
     );
   }
 }

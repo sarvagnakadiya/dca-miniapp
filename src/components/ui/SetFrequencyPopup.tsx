@@ -18,7 +18,12 @@ import { executeInitialInvestment } from "~/lib/utils";
 interface SetFrequencyPopupProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (amount: number, frequency: string, planHash?: string) => void;
+  onConfirm: (
+    amount: number,
+    frequency: string,
+    planHash?: string,
+    approvalNeeded?: boolean
+  ) => void;
   tokenOut: `0x${string}`;
   fid?: number;
   initialAmount?: number;
@@ -233,11 +238,9 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
 
       // Execute initial investment if user has sufficient allowance
       const requiredAmount = BigInt(amount * 1000000); // Convert to USDC decimals
-      if (
-        currentAllowance &&
-        currentAllowance >= requiredAmount &&
-        activePlanHash
-      ) {
+      const hasSufficientAllowance =
+        !!currentAllowance && currentAllowance >= requiredAmount;
+      if (hasSufficientAllowance && activePlanHash) {
         console.log("Executing initial investment...");
         const investResult = await executeInitialInvestment(
           activePlanHash as `0x${string}`
@@ -261,7 +264,12 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         );
       }
 
-      onConfirm(amount, frequency, activePlanHash as `0x${string}`);
+      onConfirm(
+        amount,
+        frequency,
+        activePlanHash as `0x${string}`,
+        !hasSufficientAllowance
+      );
       setIsLoading(false);
     } catch (error) {
       console.error("Error creating plan:", error);
@@ -276,6 +284,20 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         <button className="text-orange-400 text-lg" onClick={onClose}>
           × Close
         </button>
+      </div>
+      <div className="mb-4 text-gray-300 text-xs">
+        <p>
+          You will invest ${amount} into the selected token{" "}
+          {frequency.toLowerCase().includes("minute") ||
+          frequency.toLowerCase().includes("hour")
+            ? `every ${frequency}`
+            : frequency}
+          .
+        </p>
+        <p className="mt-1 text-gray-400 text-xs">
+          With each DCA execution, purchased tokens are transferred to your
+          connected wallet.
+        </p>
       </div>
       <div className="mb-4">
         <label className="block text-gray-400 mb-1">Amount</label>
@@ -330,6 +352,14 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
           <option value="Monthly">Monthly</option>
         </select>
       </div>
+      {!editMode && (
+        <div className="mb-4 text-xs text-gray-400">
+          Creating your plan may ask you to approve USDC and confirm a
+          transaction. Your USDC approval is scoped to this DCA executor and
+          cannot be misused — it’s only used to execute your scheduled buys, and
+          you can revoke it anytime.
+        </div>
+      )}
       <Button
         className="bg-orange-500 hover:bg-orange-600 text-black text-lg font-semibold py-3 rounded-xl w-full"
         onClick={handleConfirm}
