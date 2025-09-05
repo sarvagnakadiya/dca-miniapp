@@ -402,272 +402,287 @@ const Home = () => {
 
       {/* Portfolio Balance Section */}
       <div className="mb-8">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <div className="text-gray-400 text-sm mb-2">Portfolio balance</div>
-            <div className="text-4xl font-light">
-              {formatCurrency(totalPortfolioBalance)}
-            </div>
-            {portfolioData && (
-              <div className="flex items-center space-x-4 mt-2 text-sm">
-                <div className="flex items-center space-x-1">
-                  <span className="text-gray-400">Invested:</span>
-                  <span className="text-white">
-                    {formatCurrency(portfolioData.portfolioInvestedAmount)}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <span className="text-gray-400">Change:</span>
-                  <span
-                    className={
-                      portfolioData.portfolioPercentChange >= 0
-                        ? "text-green-400"
-                        : "text-red-400"
-                    }
-                  >
-                    {portfolioData.portfolioPercentChange >= 0 ? "+" : ""}
-                    {portfolioData.portfolioPercentChange.toFixed(2)}%
-                  </span>
-                </div>
-                <div className="absolute right-4 bg-[#1E1E1F] border border-[#2A2A2A] rounded-full p-1 inline-flex shadow-sm mt-[-30px]">
-                  <button
-                    onClick={() => setChartMode("value")}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                      chartMode === "value"
-                        ? "bg-black text-white"
-                        : "text-gray-300"
-                    }`}
-                  >
-                    $
-                  </button>
-                  <button
-                    onClick={() => setChartMode("percent")}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                      chartMode === "percent"
-                        ? "bg-black text-white"
-                        : "text-gray-300"
-                    }`}
-                  >
-                    %
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Dynamic Portfolio Chart */}
-        {portfolioData?.history &&
-          portfolioData.history.length > 0 &&
-          (portfolioData.portfolioInvestedAmount || 0) > 0 && (
-            <div className="relative h-40">
-              <div className="absolute top-2 right-2 z-10"></div>
-              {(() => {
-                const data = portfolioData.history!;
-                const values =
-                  chartMode === "value"
-                    ? data.map((d) => d.currentValue)
-                    : (() => {
-                        const apiPercents = data.map((d) =>
-                          d.percentChange !== null &&
-                          d.percentChange !== undefined
-                            ? Number(d.percentChange)
-                            : NaN
-                        );
-                        const hasApi = apiPercents.some((v) => !isNaN(v));
-                        if (hasApi)
-                          return apiPercents.map((v) => (isNaN(v) ? 0 : v));
-                        const first = data[0]?.currentValue || 0;
-                        if (first === 0) return data.map(() => 0);
-                        return data.map(
-                          (d) => ((d.currentValue - first) / first) * 100
-                        );
-                      })();
-
-                const investedValues =
-                  chartMode === "value"
-                    ? data.map((d) => d.totalInvestedValue ?? 0)
-                    : [];
-
-                const minVal =
-                  chartMode === "value"
-                    ? Math.min(...values, ...investedValues)
-                    : Math.min(...values);
-                const maxVal =
-                  chartMode === "value"
-                    ? Math.max(...values, ...investedValues)
-                    : Math.max(...values);
-                const { niceMin, niceMax, ticks } = calculateNiceScale(
-                  minVal,
-                  maxVal,
-                  5
-                );
-
-                const width = 400;
-                const height = 140;
-                const paddingLeft = 38; // tighter left padding to reduce empty space
-                const paddingRight = 8; // slightly reduced right padding
-                const paddingTop = 10;
-                const paddingBottom = 10;
-                const chartHeight = height - paddingTop - paddingBottom;
-                const chartWidth = width - paddingLeft - paddingRight;
-                const x = (i: number) =>
-                  paddingLeft + (i / Math.max(1, data.length - 1)) * chartWidth;
-                const y = (v: number) =>
-                  paddingTop +
-                  (1 - (v - niceMin) / Math.max(1e-9, niceMax - niceMin)) *
-                    chartHeight;
-
-                // Build path(s)
-                const path = data
-                  .map((d, i) => {
-                    const value =
-                      chartMode === "value"
-                        ? d.currentValue
-                        : d.percentChange !== null &&
-                          d.percentChange !== undefined
-                        ? Number(d.percentChange)
-                        : (() => {
-                            const first = data[0]?.currentValue || 0;
-                            return first === 0
-                              ? 0
-                              : ((d.currentValue - first) / first) * 100;
-                          })();
-                    return `${i === 0 ? "M" : "L"} ${x(i)} ${y(value)}`;
-                  })
-                  .join(" ");
-
-                const investedPath =
-                  chartMode === "value"
-                    ? data
-                        .map((d, i) => {
-                          const value = d.totalInvestedValue ?? 0;
-                          return `${i === 0 ? "M" : "L"} ${x(i)} ${y(value)}`;
-                        })
-                        .join(" ")
-                    : "";
-
-                // Area under line
-                const innerRight = width - paddingRight;
-                const areaPath = `${path} L ${innerRight} ${
-                  height - paddingBottom
-                } L ${paddingLeft} ${height - paddingBottom} Z`;
-
-                return (
-                  <>
-                    <svg
-                      className="w-full h-full"
-                      viewBox={`0 0 ${width} ${height}`}
-                      preserveAspectRatio="none"
-                    >
-                      <defs>
-                        <linearGradient
-                          id="chartGradient"
-                          x1="0%"
-                          y1="0%"
-                          x2="0%"
-                          y2="100%"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="#f97316"
-                            stopOpacity="0.25"
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="#f97316"
-                            stopOpacity="0"
-                          />
-                        </linearGradient>
-                      </defs>
-
-                      {ticks.map((t) => (
-                        <line
-                          key={t}
-                          x1={paddingLeft}
-                          y1={y(t)}
-                          x2={innerRight}
-                          y2={y(t)}
-                          stroke="#3A3A3A"
-                          strokeDasharray="6 6"
-                          strokeWidth="1"
-                        />
-                      ))}
-
-                      <path
-                        d={areaPath}
-                        fill="url(#chartGradient)"
-                        stroke="none"
-                      />
-                      <path
-                        d={path}
-                        fill="none"
-                        stroke="#f97316"
-                        strokeWidth="3"
-                      />
-                      {chartMode === "value" && (
-                        <path
-                          d={investedPath}
-                          fill="none"
-                          stroke="#60a5fa"
-                          strokeWidth="2"
-                        />
-                      )}
-                    </svg>
-
-                    <div
-                      className="pointer-events-none absolute left-0 top-0 h-full flex flex-col justify-between items-end text-[11px] text-gray-400 pr-2"
-                      style={{ width: paddingLeft - 2 }}
-                    >
-                      {ticks
-                        .slice()
-                        .reverse()
-                        .map((t) => (
-                          <span key={t}>
-                            {chartMode === "value"
-                              ? new Intl.NumberFormat("en-US", {
-                                  style: "currency",
-                                  currency: "USD",
-                                  minimumFractionDigits: 0,
-                                  maximumFractionDigits: 2,
-                                }).format(t)
-                              : `${Number(t.toFixed(0))}%`}
-                          </span>
-                        ))}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          )}
-        {/* Legend outside chart */}
-        {chartMode === "value" ? (
-          <div className="mt-3 flex justify-center gap-6 items-center text-[12px] text-gray-300">
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block w-3 h-3 rounded-sm"
-                style={{ backgroundColor: "#f97316" }}
-              />
-              <span>Portfolio Value</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block w-3 h-3 rounded-sm"
-                style={{ backgroundColor: "#60a5fa" }}
-              />
-              <span>Total Invested</span>
+        {!isLoading && tokens.filter((t) => t.hasPlan).length === 0 ? (
+          <div className="py-8 text-center">
+            <div className="text-orange-500 uppercase tracking-widest text-xl font-semibold">
+              STOP WATCHING, START STACKING
             </div>
           </div>
         ) : (
-          <div className="mt-3 flex justify-center items-center text-[12px] text-gray-300">
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block w-3 h-3 rounded-sm"
-                style={{ backgroundColor: "#f97316" }}
-              />
-              <span>Percent Change</span>
+          <>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <div className="text-gray-400 text-sm mb-2">
+                  Portfolio balance
+                </div>
+                <div className="text-4xl font-light">
+                  {formatCurrency(totalPortfolioBalance)}
+                </div>
+                {portfolioData && (
+                  <div className="flex items-center space-x-4 mt-2 text-sm">
+                    <div className="flex items-center space-x-1">
+                      <span className="text-gray-400">Invested:</span>
+                      <span className="text-white">
+                        {formatCurrency(portfolioData.portfolioInvestedAmount)}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <span className="text-gray-400">Change:</span>
+                      <span
+                        className={
+                          portfolioData.portfolioPercentChange >= 0
+                            ? "text-green-400"
+                            : "text-red-400"
+                        }
+                      >
+                        {portfolioData.portfolioPercentChange >= 0 ? "+" : ""}
+                        {portfolioData.portfolioPercentChange.toFixed(2)}%
+                      </span>
+                    </div>
+                    <div className="absolute right-4 bg-[#1E1E1F] border border-[#2A2A2A] rounded-full p-1 inline-flex shadow-sm mt-[-30px]">
+                      <button
+                        onClick={() => setChartMode("value")}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                          chartMode === "value"
+                            ? "bg-black text-white"
+                            : "text-gray-300"
+                        }`}
+                      >
+                        $
+                      </button>
+                      <button
+                        onClick={() => setChartMode("percent")}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                          chartMode === "percent"
+                            ? "bg-black text-white"
+                            : "text-gray-300"
+                        }`}
+                      >
+                        %
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+
+            {/* Dynamic Portfolio Chart */}
+            {portfolioData?.history &&
+              portfolioData.history.length > 0 &&
+              (portfolioData.portfolioInvestedAmount || 0) > 0 && (
+                <div className="relative h-40">
+                  <div className="absolute top-2 right-2 z-10"></div>
+                  {(() => {
+                    const data = portfolioData.history!;
+                    const values =
+                      chartMode === "value"
+                        ? data.map((d) => d.currentValue)
+                        : (() => {
+                            const apiPercents = data.map((d) =>
+                              d.percentChange !== null &&
+                              d.percentChange !== undefined
+                                ? Number(d.percentChange)
+                                : NaN
+                            );
+                            const hasApi = apiPercents.some((v) => !isNaN(v));
+                            if (hasApi)
+                              return apiPercents.map((v) => (isNaN(v) ? 0 : v));
+                            const first = data[0]?.currentValue || 0;
+                            if (first === 0) return data.map(() => 0);
+                            return data.map(
+                              (d) => ((d.currentValue - first) / first) * 100
+                            );
+                          })();
+
+                    const investedValues =
+                      chartMode === "value"
+                        ? data.map((d) => d.totalInvestedValue ?? 0)
+                        : [];
+
+                    const minVal =
+                      chartMode === "value"
+                        ? Math.min(...values, ...investedValues)
+                        : Math.min(...values);
+                    const maxVal =
+                      chartMode === "value"
+                        ? Math.max(...values, ...investedValues)
+                        : Math.max(...values);
+                    const { niceMin, niceMax, ticks } = calculateNiceScale(
+                      minVal,
+                      maxVal,
+                      5
+                    );
+
+                    const width = 400;
+                    const height = 140;
+                    const paddingLeft = 38; // tighter left padding to reduce empty space
+                    const paddingRight = 8; // slightly reduced right padding
+                    const paddingTop = 10;
+                    const paddingBottom = 10;
+                    const chartHeight = height - paddingTop - paddingBottom;
+                    const chartWidth = width - paddingLeft - paddingRight;
+                    const x = (i: number) =>
+                      paddingLeft +
+                      (i / Math.max(1, data.length - 1)) * chartWidth;
+                    const y = (v: number) =>
+                      paddingTop +
+                      (1 - (v - niceMin) / Math.max(1e-9, niceMax - niceMin)) *
+                        chartHeight;
+
+                    // Build path(s)
+                    const path = data
+                      .map((d, i) => {
+                        const value =
+                          chartMode === "value"
+                            ? d.currentValue
+                            : d.percentChange !== null &&
+                              d.percentChange !== undefined
+                            ? Number(d.percentChange)
+                            : (() => {
+                                const first = data[0]?.currentValue || 0;
+                                return first === 0
+                                  ? 0
+                                  : ((d.currentValue - first) / first) * 100;
+                              })();
+                        return `${i === 0 ? "M" : "L"} ${x(i)} ${y(value)}`;
+                      })
+                      .join(" ");
+
+                    const investedPath =
+                      chartMode === "value"
+                        ? data
+                            .map((d, i) => {
+                              const value = d.totalInvestedValue ?? 0;
+                              return `${i === 0 ? "M" : "L"} ${x(i)} ${y(
+                                value
+                              )}`;
+                            })
+                            .join(" ")
+                        : "";
+
+                    // Area under line
+                    const innerRight = width - paddingRight;
+                    const areaPath = `${path} L ${innerRight} ${
+                      height - paddingBottom
+                    } L ${paddingLeft} ${height - paddingBottom} Z`;
+
+                    return (
+                      <>
+                        <svg
+                          className="w-full h-full"
+                          viewBox={`0 0 ${width} ${height}`}
+                          preserveAspectRatio="none"
+                        >
+                          <defs>
+                            <linearGradient
+                              id="chartGradient"
+                              x1="0%"
+                              y1="0%"
+                              x2="0%"
+                              y2="100%"
+                            >
+                              <stop
+                                offset="0%"
+                                stopColor="#f97316"
+                                stopOpacity="0.25"
+                              />
+                              <stop
+                                offset="100%"
+                                stopColor="#f97316"
+                                stopOpacity="0"
+                              />
+                            </linearGradient>
+                          </defs>
+
+                          {ticks.map((t) => (
+                            <line
+                              key={t}
+                              x1={paddingLeft}
+                              y1={y(t)}
+                              x2={innerRight}
+                              y2={y(t)}
+                              stroke="#3A3A3A"
+                              strokeDasharray="6 6"
+                              strokeWidth="1"
+                            />
+                          ))}
+
+                          <path
+                            d={areaPath}
+                            fill="url(#chartGradient)"
+                            stroke="none"
+                          />
+                          <path
+                            d={path}
+                            fill="none"
+                            stroke="#f97316"
+                            strokeWidth="3"
+                          />
+                          {chartMode === "value" && (
+                            <path
+                              d={investedPath}
+                              fill="none"
+                              stroke="#60a5fa"
+                              strokeWidth="2"
+                            />
+                          )}
+                        </svg>
+
+                        <div
+                          className="pointer-events-none absolute left-0 top-0 h-full flex flex-col justify-between items-end text-[11px] text-gray-400 pr-2"
+                          style={{ width: paddingLeft - 2 }}
+                        >
+                          {ticks
+                            .slice()
+                            .reverse()
+                            .map((t) => (
+                              <span key={t}>
+                                {chartMode === "value"
+                                  ? new Intl.NumberFormat("en-US", {
+                                      style: "currency",
+                                      currency: "USD",
+                                      minimumFractionDigits: 0,
+                                      maximumFractionDigits: 2,
+                                    }).format(t)
+                                  : `${Number(t.toFixed(0))}%`}
+                              </span>
+                            ))}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            {/* Legend outside chart */}
+            {chartMode === "value" ? (
+              <div className="mt-3 flex justify-center gap-6 items-center text-[12px] text-gray-300">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block w-3 h-3 rounded-sm"
+                    style={{ backgroundColor: "#f97316" }}
+                  />
+                  <span>Portfolio Value</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block w-3 h-3 rounded-sm"
+                    style={{ backgroundColor: "#60a5fa" }}
+                  />
+                  <span>Total Invested</span>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 flex justify-center items-center text-[12px] text-gray-300">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block w-3 h-3 rounded-sm"
+                    style={{ backgroundColor: "#f97316" }}
+                  />
+                  <span>Percent Change</span>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 
