@@ -139,7 +139,6 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
 
     try {
       setIsLoading(true);
-
       if (editMode) {
         // Update existing plan
         console.log("Updating plan frequency...");
@@ -176,100 +175,8 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         return;
       }
 
-      // Create or reactivate plan via single API flow
-      console.log("Creating plan...");
-      console.log("USDC_ADDRESS", USDC_ADDRESS);
-      console.log("tokenOut", tokenOut);
-      console.log("address", address);
-      // Step 1: Ask API whether tx is required (also reactivates if stopped)
-      const preResp = await fetch("/api/plan/createPlan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userAddress: address,
-          tokenOutAddress: tokenOut,
-          recipient: address,
-          amountIn: amount * 1000000,
-          frequency: getFrequencyInSeconds(frequency),
-          fid,
-        }),
-      });
-      const preData = await preResp.json();
-      if (!preData.success) {
-        throw new Error(preData.error || "Failed to prepare plan");
-      }
-
-      let activePlanHash: string | undefined = preData.data?.planHash;
-
-      if (preData.txRequired) {
-        // Do on-chain create
-        const hash = await createPlan({
-          address: DCA_EXECUTOR_ADDRESS as `0x${string}`,
-          abi: DCA_ABI.abi,
-          functionName: "createPlan",
-          args: [tokenOut, address],
-        });
-        setTxHash(hash);
-        await waitForTransactionReceipt(publicClient, { hash });
-
-        // Finalize in DB
-        const finalResp = await fetch("/api/plan/createPlan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userAddress: address,
-            tokenOutAddress: tokenOut,
-            recipient: address,
-            amountIn: amount * 1000000,
-            frequency: getFrequencyInSeconds(frequency),
-            fid,
-            finalize: true,
-          }),
-        });
-        const data = await finalResp.json();
-        if (!data.success) {
-          throw new Error(data.error || "Failed to create plan in database");
-        }
-        activePlanHash = data.data.planHash;
-        console.log("Plan created successfully");
-      } else {
-        console.log("Plan reactivated successfully");
-      }
-
-      // Execute initial investment if user has sufficient allowance
-      const requiredAmount = BigInt(amount * 1000000); // Convert to USDC decimals
-      const hasSufficientAllowance =
-        !!currentAllowance && currentAllowance >= requiredAmount;
-      if (hasSufficientAllowance && activePlanHash) {
-        console.log("Executing initial investment...");
-        const investResult = await executeInitialInvestment(
-          activePlanHash as `0x${string}`
-        );
-
-        if (investResult.success) {
-          console.log(
-            "Initial investment executed successfully:",
-            investResult.txHash
-          );
-        } else {
-          console.error(
-            "Failed to execute initial investment:",
-            investResult.error
-          );
-          // Still call onConfirm since plan was created successfully
-        }
-      } else {
-        console.log(
-          "Insufficient allowance for initial investment. User needs to approve more USDC."
-        );
-      }
-
-      onConfirm(
-        amount,
-        frequency,
-        activePlanHash as `0x${string}`,
-        !hasSufficientAllowance
-      );
+      // New plan flow: do not call API or on-chain here. Proceed to approval popup.
+      onConfirm(amount, frequency, undefined, true);
       setIsLoading(false);
     } catch (error) {
       console.error("Error creating plan:", error);
@@ -368,8 +275,10 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         {isLoading
           ? editMode
             ? "Updating Plan..."
-            : "Creating Plan..."
-          : "Confirm"}
+            : "Proceed"
+          : editMode
+          ? "Confirm"
+          : "Proceed"}
       </Button>
     </BottomSheetPopup>
   );

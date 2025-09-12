@@ -1,7 +1,8 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "~/components/ui/Button";
 import { useMiniApp } from "~/components/providers/FrameProvider";
+import { useRefresh } from "~/components/providers/RefreshProvider";
 import { SetFrequencyPopup } from "~/components/ui/SetFrequencyPopup";
 import { TokenApprovalPopup } from "~/components/ui/TokenApprovalPopup";
 import { BalanceDisplay } from "~/components/ui/BalanceDisplay";
@@ -89,6 +90,7 @@ interface TokenViewProps {
 const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
   const [selectedPeriod, setSelectedPeriod] = useState("1h");
   const { context, isSDKLoaded, openUrl } = useMiniApp();
+  const { onTokenRefresh, refreshBalance } = useRefresh();
   const { address } = useAccount();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
@@ -322,58 +324,69 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
     }
   };
 
-  useEffect(() => {
-    const fetchTokenData = async () => {
-      if (tokenAddress && context?.user?.fid) {
-        try {
-          setIsLoading(true);
-          const response = await fetch(
-            `/api/plan/getPlan/${tokenAddress}/${context.user.fid}`
-          );
-          const result: TokenApiResponse = await response.json();
+  const fetchTokenData = useCallback(async () => {
+    if (tokenAddress && context?.user?.fid) {
+      try {
+        setIsLoading(true);
+        const response = await fetch(
+          `/api/plan/getPlan/${tokenAddress}/${context.user.fid}`
+        );
+        const result: TokenApiResponse = await response.json();
 
-          if (result.success) {
-            const tokenData = result.data;
-            setToken({
-              name: tokenData.name,
-              icon: tokenData.image || "₿",
-              price: parseFloat(tokenData.price || "0") || 0,
-              symbol: tokenData.symbol,
-              decimals: parseInt(tokenData.decimals) || 18,
-              stats: {
-                oneYearAgo: parseFloat(tokenData.price1yAgo || "0") || 0,
-                invested: tokenData.totalInvestedValue || 0,
-                currentValue: tokenData.currentValue || 0,
-                percentChange: tokenData.percentChange || 0,
-                marketCap: tokenData.marketCapUsd || 0,
-                fdv: tokenData.fdvUsd || 0,
-                totalSupply: tokenData.totalSupply || 0,
-                volume24h: tokenData.volume24h || 0,
-              },
-              about:
-                tokenData?.about ||
-                `Information about ${tokenData.name} (${tokenData.symbol}) token.`,
-              hasActivePlan: tokenData.hasActivePlan,
+        if (result.success) {
+          const tokenData = result.data;
+          setToken({
+            name: tokenData.name,
+            icon: tokenData.image || "₿",
+            price: parseFloat(tokenData.price || "0") || 0,
+            symbol: tokenData.symbol,
+            decimals: parseInt(tokenData.decimals) || 18,
+            stats: {
+              oneYearAgo: parseFloat(tokenData.price1yAgo || "0") || 0,
+              invested: tokenData.totalInvestedValue || 0,
+              currentValue: tokenData.currentValue || 0,
+              percentChange: tokenData.percentChange || 0,
+              marketCap: tokenData.marketCapUsd || 0,
+              fdv: tokenData.fdvUsd || 0,
+              totalSupply: tokenData.totalSupply || 0,
               volume24h: tokenData.volume24h || 0,
-            });
-            // Set active plan if exists
-            if (tokenData.plansOut && tokenData.plansOut.length > 0) {
-              setActivePlan(tokenData.plansOut[0]);
-            } else {
-              setActivePlan(null);
-            }
-            await sdk.actions.ready({});
+            },
+            about:
+              tokenData?.about ||
+              `Information about ${tokenData.name} (${tokenData.symbol}) token.`,
+            hasActivePlan: tokenData.hasActivePlan,
+            volume24h: tokenData.volume24h || 0,
+          });
+          // Set active plan if exists
+          if (tokenData.plansOut && tokenData.plansOut.length > 0) {
+            setActivePlan(tokenData.plansOut[0]);
+          } else {
+            setActivePlan(null);
           }
-        } catch (error) {
-          console.error("Error fetching token data:", error);
-        } finally {
-          setIsLoading(false);
+          await sdk.actions.ready({});
         }
+      } catch (error) {
+        console.error("Error fetching token data:", error);
+      } finally {
+        setIsLoading(false);
       }
-    };
-
-    fetchTokenData();
+    }
   }, [tokenAddress, context]);
+
+  useEffect(() => {
+    fetchTokenData();
+  }, [fetchTokenData]);
+
+  // Register refresh callback
+  useEffect(() => {
+    const unregister = onTokenRefresh((refreshTokenAddress) => {
+      // Only refresh if this is the current token or if no specific token is specified (refresh all)
+      if (!refreshTokenAddress || refreshTokenAddress === tokenAddress) {
+        fetchTokenData();
+      }
+    });
+    return unregister;
+  }, [onTokenRefresh, fetchTokenData, tokenAddress]);
 
   // Show loading if SDK is not loaded yet
   if (!isSDKLoaded) {
@@ -416,7 +429,7 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
             <span className="text-lg font-medium">{token.name}</span>
           </div>
         </div>
-        <BalanceDisplay />
+        <BalanceDisplay onOpenApproval={() => setShowTokenApproval(true)} />
       </div>
 
       {/* Price & Chart Section */}
@@ -815,7 +828,7 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
             {token.hasActivePlan
               ? "Allow more USDC"
               : frequencyData
-              ? "Approve USDC"
+              ? "Create & Approve"
               : `Invest in ${token.symbol}`}
           </Button>
         </div>
@@ -852,9 +865,10 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
             setTimeout(() => setShowPlanCreatedShare(true), 300);
           }
           setApprovalNeededForNewPlan(undefined);
-          // After approval, refresh plan/allowance dependent UI
+          // After approval, refresh plan/allowance dependent UI and balance data
           setTimeout(async () => {
             await refetchPlanData();
+            refreshBalance(); // Trigger global balance refresh
             router.refresh();
           }, 800);
         }}
@@ -863,6 +877,38 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
         tokenOutAddress={tokenAddress as `0x${string}`}
         fid={context?.user?.fid}
         planHash={pendingPlanHash}
+        frequencySeconds={(function () {
+          const label = frequencyData?.frequency || "Daily";
+          if (!label) return 86400;
+          const lower = label.toLowerCase();
+          if (lower.includes("minute")) {
+            const n = parseInt(lower);
+            return isNaN(n) ? 300 : n * 60;
+          }
+          if (lower.includes("hour")) return 3600;
+          switch (label) {
+            case "5 Minutes":
+              return 300;
+            case "10 Minutes":
+              return 600;
+            case "15 Minutes":
+              return 900;
+            case "30 Minutes":
+              return 1800;
+            case "Hourly":
+              return 3600;
+            case "Daily":
+              return 86400;
+            case "Weekly":
+              return 604800;
+            case "Monthly":
+              return 2592000;
+            default:
+              return 86400;
+          }
+        })()}
+        hasActivePlan={token.hasActivePlan}
+        planAmount={frequencyData?.amount}
       />
       <PlanCreatedSharePopup
         open={showPlanCreatedShare}

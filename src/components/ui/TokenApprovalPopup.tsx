@@ -6,6 +6,10 @@ import { useAccount, useWriteContract, useReadContract } from "wagmi";
 import { USDC_ABI } from "~/lib/contracts/abi";
 import { executeInitialInvestment, publicClient } from "~/lib/utils";
 import { waitForTransactionReceipt } from "viem/actions";
+import { encodeFunctionData } from "viem";
+import DCA_ABI from "~/lib/contracts/DCAForwarder.json";
+import { sendCalls, waitForCallsStatus } from "@wagmi/core";
+import { config } from "~/components/providers/WagmiProvider";
 
 interface TokenApprovalPopupProps {
   open: boolean;
@@ -16,6 +20,9 @@ interface TokenApprovalPopupProps {
   tokenOutAddress?: `0x${string}`;
   fid?: number;
   planHash?: string; // Add planHash for initial investment execution
+  frequencySeconds?: number;
+  hasActivePlan?: boolean;
+  planAmount?: number; // amount selected in SetFrequencyPopup (USDC units)
 }
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
@@ -32,6 +39,9 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
   tokenOutAddress,
   fid,
   planHash,
+  frequencySeconds = 86400,
+  hasActivePlan = false,
+  planAmount,
 }) => {
   const [amount, setAmount] = useState(defaultAmount);
   const [isLoading, setIsLoading] = useState(false);
@@ -39,6 +49,7 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
   const { address } = useAccount();
 
   const { writeContractAsync: approveToken, isPending } = useWriteContract();
+  const { writeContractAsync: writeContractDirect } = useWriteContract();
 
   // Check current allowance
   const { data: currentAllowance } = useReadContract({
@@ -102,110 +113,179 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
 
     try {
       setIsLoading(true);
-      setApprovalStatus("Approving USDC...");
+      const approvalAmountInWei = BigInt(amount * 1000000);
+      const planAmountInWei = BigInt((planAmount ?? amount) * 1000000);
 
-      // Convert amount to USDC decimals (6 decimals)
-      const amountInWei = BigInt(amount * 1000000);
+      // Check if we have plan data from SetFrequencyPopup (new plan creation)
+      const isCreatingNewPlan =
+        !hasActivePlan &&
+        planAmount !== undefined &&
+        tokenOutAddress !== undefined;
 
-      console.log("Approving USDC...");
-      console.log("Amount:", amount, "USDC");
-      console.log("Amount in wei:", amountInWei.toString());
-      console.log("DCA Executor Address:", DCA_EXECUTOR_ADDRESS);
+      // If user already has an active plan OR no plan data, only approve more USDC
+      if (hasActivePlan || !isCreatingNewPlan) {
+        setApprovalStatus("Approving USDC...");
+        const hash = await approveToken({
+          address: USDC_ADDRESS as `0x${string}`,
+          abi: USDC_ABI,
+          functionName: "approve",
+          args: [DCA_EXECUTOR_ADDRESS as `0x${string}`, approvalAmountInWei],
+        });
+        setApprovalStatus("Waiting for approval confirmation...");
+        await waitForTransactionReceipt(publicClient, { hash });
+        setApprovalStatus("Approval confirmed!");
+        onApprove(amount);
+        return;
+      }
 
-      const hash = await approveToken({
-        address: USDC_ADDRESS as `0x${string}`,
+      // New plan creation with EIP-5792 batching
+      console.log("Creating new plan with batching...");
+
+      // Preflight: may reactivate plan DB-side and skip on-chain create
+      const preResp = await fetch("/api/plan/createPlan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userAddress: address,
+          tokenOutAddress,
+          recipient: address,
+          amountIn: Number(planAmountInWei),
+          frequency: frequencySeconds,
+          fid,
+        }),
+      });
+      const preJson = await preResp.json();
+      if (!preJson.success) {
+        throw new Error(preJson.error || "Failed to prepare plan");
+      }
+
+      if (preJson.txRequired === false) {
+        // Plan exists and was reactivated. Only approve more USDC.
+        setApprovalStatus("Approving USDC for reactivated plan...");
+        const hash = await approveToken({
+          address: USDC_ADDRESS as `0x${string}`,
+          abi: USDC_ABI,
+          functionName: "approve",
+          args: [DCA_EXECUTOR_ADDRESS as `0x${string}`, approvalAmountInWei],
+        });
+        await waitForTransactionReceipt(publicClient, { hash });
+        setApprovalStatus("Reactivated & approved!");
+        onApprove(amount);
+        return;
+      }
+
+      setApprovalStatus("Creating plan & approving USDC...");
+
+      const approveData = encodeFunctionData({
         abi: USDC_ABI,
         functionName: "approve",
-        args: [DCA_EXECUTOR_ADDRESS as `0x${string}`, amountInWei],
+        args: [DCA_EXECUTOR_ADDRESS as `0x${string}`, approvalAmountInWei],
       });
-
-      console.log("Approval transaction hash:", hash);
-      setApprovalStatus("Waiting for approval confirmation...");
-
-      // Wait for the approval transaction to be confirmed
-      const receipt = await waitForTransactionReceipt(publicClient, {
-        hash: hash,
+      const createPlanData = encodeFunctionData({
+        abi: DCA_ABI.abi,
+        functionName: "createPlan",
+        args: [tokenOutAddress, address as `0x${string}`],
       });
+      console.log("naya naya EIP");
 
-      console.log("Approval transaction confirmed:", receipt);
-      setApprovalStatus("Approval confirmed! Waiting for state update...");
+      try {
+        const { id } = await sendCalls(config, {
+          calls: [
+            { to: USDC_ADDRESS, data: approveData },
+            { to: DCA_EXECUTOR_ADDRESS, data: createPlanData, value: 0n },
+          ],
+        });
 
-      // Add a delay to ensure blockchain state is updated
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Only execute initial investment if we have a planHash (indicating this is for a new plan)
-      if (planHash) {
-        console.log(
-          "Executing initial investment after approval confirmation..."
-        );
-
-        // Convert amount to USDC decimals for allowance check
-        const expectedAllowance = BigInt(amount * 1000000);
-
-        // Check if allowance has been properly updated
-        setApprovalStatus("Verifying allowance update...");
-        const allowanceConfirmed = await checkAllowanceWithRetry(
-          expectedAllowance
-        );
-
-        if (!allowanceConfirmed) {
-          console.error("Allowance not properly updated after approval");
-          setApprovalStatus(
-            "Approval successful but allowance not yet reflected. Please try again in a few moments."
-          );
-          onApprove(amount);
-          return;
+        // Wait for batched calls to complete
+        const status = await waitForCallsStatus(config, { id });
+        if (status.status !== "success") {
+          throw new Error(`Batched call status: ${status.status}`);
         }
 
-        console.log("USDC approval completed for amount:", amount);
-        setApprovalStatus(
-          "Allowance confirmed! Executing initial investment..."
-        );
+        setApprovalStatus("Finalizing plan...");
+        // Create plan in DB (finalize=true)
+        const finalResp = await fetch("/api/plan/createPlan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userAddress: address,
+            tokenOutAddress,
+            recipient: address,
+            amountIn: Number(planAmountInWei),
+            frequency: frequencySeconds,
+            fid,
+            finalize: true,
+          }),
+        });
+        const finalJson = await finalResp.json();
+        if (!finalJson.success) {
+          throw new Error(finalJson.error || "Failed to create plan in DB");
+        }
 
-        // Add retry mechanism for database connection issues
-        let investResult;
-        let retryCount = 0;
-        const maxRetries = 3;
-
-        while (retryCount < maxRetries) {
+        // Optionally execute initial investment (best-effort)
+        const createdPlanHash = finalJson.data?.planHash as string | undefined;
+        if (createdPlanHash) {
           try {
-            investResult = await executeInitialInvestment(planHash);
-            break; // Success, exit retry loop
-          } catch (error) {
-            retryCount++;
-            console.log(`Investment attempt ${retryCount} failed:`, error);
-
-            if (retryCount < maxRetries) {
-              setApprovalStatus(
-                `Investment failed, retrying... (${retryCount}/${maxRetries})`
-              );
-              // Wait 2 seconds before retrying
-              await new Promise((resolve) => setTimeout(resolve, 2000));
+            const invest = await executeInitialInvestment(createdPlanHash);
+            if (!invest.success) {
+              console.warn("Initial investment failed:", invest.error);
             }
+          } catch (e) {
+            console.warn("Initial investment error:", e);
           }
         }
 
-        if (investResult && investResult.success) {
-          console.log(
-            "Initial investment executed successfully:",
-            investResult.txHash
-          );
-          setApprovalStatus("Initial investment executed successfully!");
-        } else {
-          console.error(
-            "Failed to execute initial investment:",
-            investResult?.error || "Unknown error"
-          );
-          setApprovalStatus(
-            "Approval successful but investment failed. Please try again."
-          );
-        }
-      } else {
-        setApprovalStatus("Approval successful!");
-      }
+        setApprovalStatus("Plan created & USDC approved!");
+        onApprove(amount);
+      } catch (batchErr) {
+        console.warn(
+          "Batching unavailable or failed, falling back to sequential txs:",
+          batchErr
+        );
 
-      // Call the onApprove callback with the amount
-      onApprove(amount);
+        // Fallback: createPlan tx then approve tx sequentially
+        try {
+          const hash1 = await approveToken({
+            address: USDC_ADDRESS as `0x${string}`,
+            abi: USDC_ABI,
+            functionName: "approve",
+            args: [DCA_EXECUTOR_ADDRESS as `0x${string}`, approvalAmountInWei],
+          });
+          await waitForTransactionReceipt(publicClient, { hash: hash1 });
+
+          const hash2 = await writeContractDirect({
+            address: DCA_EXECUTOR_ADDRESS as `0x${string}`,
+            abi: DCA_ABI.abi,
+            functionName: "createPlan",
+            args: [tokenOutAddress, address as `0x${string}`],
+          });
+          await waitForTransactionReceipt(publicClient, { hash: hash2 });
+
+          // Finalize DB
+          const finalResp = await fetch("/api/plan/createPlan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userAddress: address,
+              tokenOutAddress,
+              recipient: address,
+              amountIn: Number(planAmountInWei),
+              frequency: frequencySeconds,
+              fid,
+              finalize: true,
+            }),
+          });
+          const finalJson = await finalResp.json();
+          if (!finalJson.success) {
+            throw new Error(finalJson.error || "Failed to create plan in DB");
+          }
+          setApprovalStatus("Plan created & USDC approved!");
+          onApprove(amount);
+        } catch (seqErr) {
+          console.error("Sequential fallback failed:", seqErr);
+          setApprovalStatus("Action failed. Please try again.");
+        }
+      }
     } catch (error) {
       console.error("Error approving USDC:", error);
       setApprovalStatus("Approval failed. Please try again.");
@@ -270,7 +350,24 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
         onClick={handleApprove}
         disabled={isLoading || isPending}
       >
-        {isLoading || isPending ? "Approving..." : `Approve ${amount} ${token}`}
+        {(() => {
+          const isCreatingNewPlan =
+            !hasActivePlan &&
+            planAmount !== undefined &&
+            tokenOutAddress !== undefined;
+
+          if (isLoading || isPending) {
+            return isCreatingNewPlan
+              ? "Creating & Approving..."
+              : "Approving...";
+          }
+
+          if (isCreatingNewPlan) {
+            return "Create & Approve";
+          }
+
+          return `Approve ${amount} ${token}`;
+        })()}
       </Button>
     </BottomSheetPopup>
   );

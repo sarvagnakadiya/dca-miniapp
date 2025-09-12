@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useEffect } from "react";
 import Image from "next/image";
 import { useAccount, useBalance, useReadContract } from "wagmi";
 import { useMiniApp } from "~/components/providers/FrameProvider";
+import { useRefresh } from "~/components/providers/RefreshProvider";
 import { USDC_ABI } from "~/lib/contracts/abi";
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
@@ -20,9 +21,14 @@ export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({
 }) => {
   const { address } = useAccount();
   const { context } = useMiniApp();
+  const { onBalanceRefresh } = useRefresh();
 
   // Fetch USDC balance
-  const { data: balanceData, isLoading: balanceLoading } = useBalance({
+  const {
+    data: balanceData,
+    isLoading: balanceLoading,
+    refetch: refetchBalance,
+  } = useBalance({
     address: address as `0x${string}`,
     token: USDC_ADDRESS as `0x${string}`,
     query: {
@@ -31,7 +37,11 @@ export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({
   });
 
   // Fetch USDC allowance
-  const { data: allowanceData, isLoading: allowanceLoading } = useReadContract({
+  const {
+    data: allowanceData,
+    isLoading: allowanceLoading,
+    refetch: refetchAllowance,
+  } = useReadContract({
     address: USDC_ADDRESS as `0x${string}`,
     abi: USDC_ABI,
     functionName: "allowance",
@@ -40,6 +50,15 @@ export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({
       enabled: !!address,
     },
   });
+
+  // Register refresh callback
+  useEffect(() => {
+    const unregister = onBalanceRefresh(() => {
+      refetchBalance();
+      refetchAllowance();
+    });
+    return unregister;
+  }, [onBalanceRefresh, refetchBalance, refetchAllowance]);
 
   // Format balance to display
   const formatBalance = (balance: bigint | undefined): string => {

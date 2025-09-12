@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useMiniApp } from "~/components/providers/FrameProvider";
+import { useRefresh } from "~/components/providers/RefreshProvider";
 import { useRouter } from "next/navigation";
 import sdk from "@farcaster/miniapp-sdk";
 import { BalanceDisplay } from "./ui/BalanceDisplay";
@@ -134,8 +135,10 @@ const Home = () => {
   );
   const [isLoading, setIsLoading] = useState(true);
   const { context, isSDKLoaded, addFrame, added } = useMiniApp();
+  const { refreshAll } = useRefresh();
   const router = useRouter();
   const [openTokenAddress, setOpenTokenAddress] = useState<string | null>(null);
+  const [shouldRefreshOnClose, setShouldRefreshOnClose] = useState(false);
   const [chartMode, setChartMode] = useState<"value" | "percent">("value");
   const [isApprovalOpen, setIsApprovalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -309,13 +312,55 @@ const Home = () => {
     const pulled = pullDistanceRef.current;
     if (pulled > PULL_THRESHOLD && !isRefreshing) {
       setIsRefreshing(true);
-      await fetchTokens({ silent: true });
-      setIsRefreshing(false);
+      try {
+        // Refresh all data: tokens, portfolio, balance, and token data
+        await Promise.all([
+          fetchTokens({ silent: true }),
+          new Promise<void>((resolve) => {
+            refreshAll();
+            // Give a small delay to ensure all refresh callbacks are triggered
+            setTimeout(resolve, 100);
+          }),
+        ]);
+      } catch (error) {
+        console.error("Error during refresh:", error);
+      } finally {
+        setIsRefreshing(false);
+      }
     }
     setPullDistance(0);
     isDraggingRef.current = false;
     touchStartYRef.current = null;
   };
+
+  const handleTokenViewClose = async () => {
+    setOpenTokenAddress(null);
+    setShouldRefreshOnClose(true);
+  };
+
+  // Auto-refresh when returning from TokenView
+  useEffect(() => {
+    if (shouldRefreshOnClose) {
+      const performRefresh = async () => {
+        try {
+          // Refresh all data when returning from TokenView
+          await Promise.all([
+            fetchTokens({ silent: true }),
+            new Promise<void>((resolve) => {
+              refreshAll();
+              // Give a small delay to ensure all refresh callbacks are triggered
+              setTimeout(resolve, 100);
+            }),
+          ]);
+        } catch (error) {
+          console.error("Error during auto-refresh:", error);
+        } finally {
+          setShouldRefreshOnClose(false);
+        }
+      };
+      performRefresh();
+    }
+  }, [shouldRefreshOnClose, fetchTokens, refreshAll]);
 
   // Show loading if SDK is not loaded yet
   if (!isSDKLoaded) {
@@ -795,7 +840,7 @@ const Home = () => {
         <div className="fixed inset-0 z-50 bg-black overflow-y-auto">
           <TokenView
             tokenAddress={openTokenAddress}
-            onClose={() => setOpenTokenAddress(null)}
+            onClose={handleTokenViewClose}
           />
         </div>
       )}
