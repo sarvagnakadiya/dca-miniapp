@@ -175,8 +175,126 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         return;
       }
 
-      // New plan flow: do not call API or on-chain here. Proceed to approval popup.
-      onConfirm(amount, frequency, undefined, true);
+      // New plan flow: Check if user has sufficient USDC allowance
+      const requiredAllowance = BigInt(amount * 1_000_000); // Convert to wei (USDC has 6 decimals)
+      const hasSufficientAllowance =
+        currentAllowance && currentAllowance >= requiredAllowance;
+
+      if (hasSufficientAllowance) {
+        // User has sufficient allowance, create plan directly
+        console.log("User has sufficient allowance, creating plan directly...");
+
+        const freqSeconds = getFrequencyInSeconds(frequency);
+
+        // Preflight: may reactivate plan DB-side and skip on-chain create
+        const preResp = await fetch("/api/plan/createPlan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userAddress: address,
+            tokenOutAddress: tokenOut,
+            recipient: address,
+            amountIn: Number(requiredAllowance),
+            frequency: freqSeconds,
+            fid,
+          }),
+        });
+        const preJson = await preResp.json();
+        if (!preJson.success) {
+          throw new Error(preJson.error || "Failed to prepare plan");
+        }
+
+        if (preJson.txRequired === false) {
+          // Plan exists and was reactivated
+          console.log("Plan reactivated successfully");
+
+          // Execute initial investment for reactivated plan (best-effort)
+          const reactivatedPlanHash = preJson.data?.planHash as
+            | string
+            | undefined;
+          if (reactivatedPlanHash) {
+            try {
+              const invest = await executeInitialInvestment(
+                reactivatedPlanHash
+              );
+              if (!invest.success) {
+                console.warn("Initial investment failed:", invest.error);
+              } else {
+                console.log(
+                  "Initial investment executed successfully:",
+                  invest.txHash
+                );
+              }
+            } catch (e) {
+              console.warn("Initial investment error:", e);
+            }
+          }
+
+          onConfirm(amount, frequency, preJson.data?.planHash, false);
+          setIsLoading(false);
+          return;
+        }
+
+        // Create plan on-chain
+        console.log("Creating plan on-chain...");
+        const hash = await createPlan({
+          address: DCA_EXECUTOR_ADDRESS,
+          abi: DCA_ABI.abi,
+          functionName: "createPlan",
+          args: [tokenOut, address],
+        });
+
+        setTxHash(hash);
+        await waitForTransactionReceipt(publicClient, { hash });
+
+        // Finalize plan in DB
+        const finalResp = await fetch("/api/plan/createPlan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userAddress: address,
+            tokenOutAddress: tokenOut,
+            recipient: address,
+            amountIn: Number(requiredAllowance),
+            frequency: freqSeconds,
+            fid,
+            finalize: true,
+          }),
+        });
+        const finalJson = await finalResp.json();
+        if (!finalJson.success) {
+          throw new Error(finalJson.error || "Failed to create plan in DB");
+        }
+
+        console.log("Plan created successfully");
+
+        // Execute initial investment (best-effort)
+        const createdPlanHash = finalJson.data?.planHash as string | undefined;
+        if (createdPlanHash) {
+          try {
+            const invest = await executeInitialInvestment(createdPlanHash);
+            if (!invest.success) {
+              console.warn("Initial investment failed:", invest.error);
+            } else {
+              console.log(
+                "Initial investment executed successfully:",
+                invest.txHash
+              );
+            }
+          } catch (e) {
+            console.warn("Initial investment error:", e);
+          }
+        }
+
+        onConfirm(amount, frequency, finalJson.data?.planHash, false);
+      } else {
+        // User needs to approve more USDC, proceed to approval popup
+        console.log(
+          "User needs more USDC allowance, proceeding to approval popup..."
+        );
+        onConfirm(amount, frequency, undefined, true);
+      }
+
       setIsLoading(false);
     } catch (error) {
       console.error("Error creating plan:", error);
@@ -263,8 +381,8 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         <div className="mb-4 text-xs text-gray-400">
           Creating your plan may ask you to approve USDC and confirm a
           transaction. Your USDC approval is scoped to this DCA executor and
-          cannot be misused — it’s only used to execute your scheduled buys, and
-          you can revoke it anytime.
+          cannot be misused — it&apos;s only used to execute your scheduled
+          buys, and you can revoke it anytime.
         </div>
       )}
       <Button
@@ -272,13 +390,22 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         onClick={handleConfirm}
         disabled={isLoading}
       >
-        {isLoading
-          ? editMode
-            ? "Updating Plan..."
-            : "Proceed"
-          : editMode
-          ? "Confirm"
-          : "Proceed"}
+        {(() => {
+          if (isLoading) {
+            return editMode ? "Updating Plan..." : "Creating Plan...";
+          }
+
+          if (editMode) {
+            return "Confirm";
+          }
+
+          // For new plans, check if user has sufficient allowance
+          const requiredAllowance = BigInt(amount * 1_000_000);
+          const hasSufficientAllowance =
+            currentAllowance && currentAllowance >= requiredAllowance;
+
+          return hasSufficientAllowance ? "Create Plan" : "Proceed";
+        })()}
       </Button>
     </BottomSheetPopup>
   );

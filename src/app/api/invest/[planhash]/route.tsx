@@ -5,18 +5,18 @@ import { ethers } from "ethers";
 const DCA_EXECUTOR_ADDRESS = process.env.NEXT_PUBLIC_DCA_EXECUTOR_ADDRESS;
 const RPC_URL = process.env.RPC_URL;
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
-const ONEINCH_API_KEY = process.env.ONEINCH_API_KEY;
+const ZEROX_API_KEY = process.env.ZEROX_API_KEY;
 
-if (!DCA_EXECUTOR_ADDRESS || !RPC_URL || !PRIVATE_KEY || !ONEINCH_API_KEY) {
+if (!DCA_EXECUTOR_ADDRESS || !RPC_URL || !PRIVATE_KEY || !ZEROX_API_KEY) {
   throw new Error(
-    "Missing required environment variables for DCA executor or 1inch API"
+    "Missing required environment variables for DCA executor or 0x API"
   );
 }
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const signer = new ethers.Wallet(PRIVATE_KEY, provider);
 
-const ONEINCH_BASE_URL = "https://api.1inch.dev/swap/v6.0/8453/swap";
+const ZEROX_BASE_URL = "https://api.0x.org/swap/allowance-holder/quote";
 
 const DCAExecutorABI = [
   {
@@ -75,35 +75,32 @@ async function getSwapData(
 ): Promise<string> {
   try {
     const params = new URLSearchParams({
-      src: srcToken,
-      dst: dstToken,
-      amount: amount.toString(),
-      from: DCA_EXECUTOR_ADDRESS,
-      origin: recipient,
-      slippage: "5",
-      disableEstimate: "true",
-      referrer: "0xe42c136730a9cfefb5514d4d3d06eb27baaf3f08",
-      fee: "3",
+      sellAmount: amount.toString(),
+      taker: DCA_EXECUTOR_ADDRESS,
+      chainId: "8453", // Base chain ID
+      sellToken: srcToken,
+      buyToken: dstToken,
     } as Record<string, string>);
-    const url = `${ONEINCH_BASE_URL}?${params.toString()}`;
+    const url = `${ZEROX_BASE_URL}?${params.toString()}`;
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${ONEINCH_API_KEY}`,
+        "0x-api-key": ZEROX_API_KEY!,
+        "0x-version": "v2",
         accept: "application/json",
         "content-type": "application/json",
       },
     });
     if (!response.ok) {
       throw new Error(
-        `1inch API error: ${response.status} ${response.statusText}`
+        `0x API error: ${response.status} ${response.statusText}`
       );
     }
     const data = await response.json();
-    if (data.tx && data.tx.data) {
-      return data.tx.data;
+    if (data.transaction && data.transaction.data) {
+      return data.transaction.data;
     } else {
-      throw new Error("No swap data found in 1inch API response");
+      throw new Error("No swap data found in 0x API response");
     }
   } catch (error) {
     let details = "";

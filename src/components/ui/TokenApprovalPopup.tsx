@@ -43,10 +43,18 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
   hasActivePlan = false,
   planAmount,
 }) => {
-  const [amount, setAmount] = useState(defaultAmount);
+  // Use planAmount as default if available, otherwise use defaultAmount
+  const [amount, setAmount] = useState(planAmount || defaultAmount);
   const [isLoading, setIsLoading] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState<string>("");
   const { address } = useAccount();
+
+  // Update amount when popup opens with new planAmount
+  React.useEffect(() => {
+    if (open && planAmount) {
+      setAmount(planAmount);
+    }
+  }, [open, planAmount]);
 
   const { writeContractAsync: approveToken, isPending } = useWriteContract();
   const { writeContractAsync: writeContractDirect } = useWriteContract();
@@ -333,6 +341,12 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
           Current allowance:{" "}
           {currentAllowance === 0n ? "0" : Number(currentAllowance) / 1000000}{" "}
           USDC
+          {planAmount && currentAllowance > 0n && (
+            <div className="mt-2 text-xs text-blue-200">
+              💡 You already have some allowance. You can extend it to ${amount}{" "}
+              for more flexibility.
+            </div>
+          )}
         </div>
       )}
       {approvalStatus && (
