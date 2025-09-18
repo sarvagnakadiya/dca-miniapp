@@ -390,7 +390,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
       <Button
         className="bg-orange-500 hover:bg-orange-600 text-black text-lg font-semibold py-3 rounded-xl w-full"
         onClick={handleConfirm}
-        disabled={isLoading || amount === ""}
+        disabled={isLoading || amount === "" || Number(amount) === 0}
       >
         {(() => {
           if (isLoading) {
