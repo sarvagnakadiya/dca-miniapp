@@ -22,7 +22,7 @@ export const AmountInput = ({
       thousandSeparator
       valueIsNumericString
       allowNegative={false} //  no negatives
-      decimalScale={6} // max 6 decimals
+      decimalScale={2} // max 6 decimals
       placeholder="0.00"
       className="bg-[#333333] text-white border-2 border-[#333333] rounded-md"
     />
