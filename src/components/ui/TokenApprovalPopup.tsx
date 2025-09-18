@@ -11,6 +11,8 @@ import DCA_ABI from "~/lib/contracts/DCAForwarder.json";
 import { sendCalls, waitForCallsStatus } from "@wagmi/core";
 import { config } from "~/components/providers/WagmiProvider";
 
+import { AmountInput } from "./AmountInput";
+
 interface TokenApprovalPopupProps {
   open: boolean;
   onClose: () => void;
@@ -28,7 +30,7 @@ interface TokenApprovalPopupProps {
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
 const DCA_EXECUTOR_ADDRESS = process.env
   .NEXT_PUBLIC_DCA_EXECUTOR_ADDRESS as `0x${string}`;
-const quickAmounts = [5, 10, 50, 100, 500, 1000];
+const quickAmounts = [0.5, 1, 2, 5, 10, 50, 100, 500, 1000];
 
 export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
   open,
@@ -44,7 +46,9 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
   planAmount,
 }) => {
   // Use planAmount as default if available, otherwise use defaultAmount
-  const [amount, setAmount] = useState(planAmount || defaultAmount);
+  const [amount, setAmount] = useState(
+    planAmount?.toString() || defaultAmount.toString()
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [approvalStatus, setApprovalStatus] = useState<string>("");
   const { address } = useAccount();
@@ -52,7 +56,7 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
   // Update amount when popup opens with new planAmount
   React.useEffect(() => {
     if (open && planAmount) {
-      setAmount(planAmount);
+      setAmount(planAmount.toString());
     }
   }, [open, planAmount]);
 
@@ -121,8 +125,8 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
 
     try {
       setIsLoading(true);
-      const approvalAmountInWei = BigInt(amount * 1000000);
-      const planAmountInWei = BigInt((planAmount ?? amount) * 1000000);
+      const approvalAmountInWei = BigInt(Number(amount) * 1000000);
+      const planAmountInWei = BigInt((planAmount ?? Number(amount)) * 1000000);
 
       // Check if we have plan data from SetFrequencyPopup (new plan creation)
       const isCreatingNewPlan =
@@ -142,7 +146,7 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
         setApprovalStatus("Waiting for approval confirmation...");
         await waitForTransactionReceipt(publicClient, { hash });
         setApprovalStatus("Approval confirmed!");
-        onApprove(amount);
+        onApprove(Number(amount));
         return;
       }
 
@@ -178,7 +182,7 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
         });
         await waitForTransactionReceipt(publicClient, { hash });
         setApprovalStatus("Reactivated & approved!");
-        onApprove(amount);
+        onApprove(Number(amount));
         return;
       }
 
@@ -244,7 +248,7 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
         }
 
         setApprovalStatus("Plan created & USDC approved!");
-        onApprove(amount);
+        onApprove(Number(amount));
       } catch (batchErr) {
         console.warn(
           "Batching unavailable or failed, falling back to sequential txs:",
@@ -288,7 +292,7 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
             throw new Error(finalJson.error || "Failed to create plan in DB");
           }
           setApprovalStatus("Plan created & USDC approved!");
-          onApprove(amount);
+          onApprove(Number(amount));
         } catch (seqErr) {
           console.error("Sequential fallback failed:", seqErr);
           setApprovalStatus("Action failed. Please try again.");
@@ -314,23 +318,17 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
       </div>
       <div className="mb-4">
         <label className="block text-gray-400 mb-1">Amount</label>
-        <Input
-          type="number"
-          value={amount.toString()}
-          min={0.01}
-          step={0.01}
-          onChange={(e) => setAmount(Number(e.target.value))}
-          className="bg-[#333333] text-white border-2 border-[#333333] rounded-md"
-        />
+
+        <AmountInput value={amount} onChange={setAmount} />
       </div>
       <div className="grid grid-cols-3 gap-3 mb-6">
         {quickAmounts.map((amt) => (
           <button
             key={amt}
             className={`py-2 rounded-2xl text-lg font-medium transition-colors bg-[#333333] text-white hover:bg-orange-500 hover:text-white ${
-              amount === amt ? "bg-orange-500 text-white" : ""
+              amount === amt.toString() ? "bg-orange-500 text-white" : ""
             }`}
-            onClick={() => setAmount(amt)}
+            onClick={() => setAmount(amt.toString())}
           >
             ${amt}
           </button>
@@ -362,7 +360,7 @@ export const TokenApprovalPopup: React.FC<TokenApprovalPopupProps> = ({
       <Button
         className="bg-orange-500 hover:bg-orange-600 text-black text-lg font-semibold py-3 rounded-xl w-full disabled:bg-gray-600 disabled:text-gray-400"
         onClick={handleApprove}
-        disabled={isLoading || isPending}
+        disabled={isLoading || isPending || amount === ""}
       >
         {(() => {
           const isCreatingNewPlan =

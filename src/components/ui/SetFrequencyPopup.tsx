@@ -14,6 +14,7 @@ import { base } from "viem/chains";
 import { waitForTransactionReceipt } from "viem/actions";
 import { createPublicClient, http } from "viem";
 import { executeInitialInvestment } from "~/lib/utils";
+import { AmountInput } from "./AmountInput";
 
 interface SetFrequencyPopupProps {
   open: boolean;
@@ -32,7 +33,7 @@ interface SetFrequencyPopupProps {
 }
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as `0x${string}`;
-const quickAmounts = [5, 10, 50, 100, 500, 1000];
+const quickAmounts = [0.5, 1, 2, 5, 10, 50, 100, 500, 1000];
 
 // Create a public client for waiting for transaction receipt
 const publicClient = createPublicClient({
@@ -50,7 +51,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
   initialFrequency = "Daily",
   editMode = false,
 }) => {
-  const [amount, setAmount] = useState(initialAmount);
+  const [amount, setAmount] = useState(initialAmount.toString());
   const [frequency, setFrequency] = useState(initialFrequency);
   const [isLoading, setIsLoading] = useState(false);
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>();
@@ -101,7 +102,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
   // Sync initial values when opening (preserve current plan values on edit)
   React.useEffect(() => {
     if (open) {
-      setAmount(initialAmount);
+      setAmount(initialAmount.toString());
       setFrequency(initialFrequency);
       setAmountError(false);
     }
@@ -132,7 +133,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
 
   const handleConfirm = async () => {
     if (!address) return;
-    if (!amount || amount <= 0) {
+    if (!amount || Number(amount) <= 0) {
       setAmountError(true);
       return;
     }
@@ -158,7 +159,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
           body: JSON.stringify({
             userAddress: address,
             tokenOutAddress: tokenOut,
-            amountIn: amount * 1_000_000,
+            amountIn: Number(amount) * 1_000_000,
             frequency: freqSeconds,
             fid: fid,
           }),
@@ -170,13 +171,13 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
         }
 
         console.log("Plan updated successfully");
-        onConfirm(amount, frequency);
+        onConfirm(Number(amount), frequency);
         setIsLoading(false);
         return;
       }
 
       // New plan flow: Check if user has sufficient USDC allowance
-      const requiredAllowance = BigInt(amount * 1_000_000); // Convert to wei (USDC has 6 decimals)
+      const requiredAllowance = BigInt(Number(amount) * 1_000_000); // Convert to wei (USDC has 6 decimals)
       const hasSufficientAllowance =
         currentAllowance && currentAllowance >= requiredAllowance;
 
@@ -230,7 +231,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
             }
           }
 
-          onConfirm(amount, frequency, preJson.data?.planHash, false);
+          onConfirm(Number(amount), frequency, preJson.data?.planHash, false);
           setIsLoading(false);
           return;
         }
@@ -286,13 +287,13 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
           }
         }
 
-        onConfirm(amount, frequency, finalJson.data?.planHash, false);
+        onConfirm(Number(amount), frequency, finalJson.data?.planHash, false);
       } else {
         // User needs to approve more USDC, proceed to approval popup
         console.log(
           "User needs more USDC allowance, proceeding to approval popup..."
         );
-        onConfirm(amount, frequency, undefined, true);
+        onConfirm(Number(amount), frequency, undefined, true);
       }
 
       setIsLoading(false);
@@ -326,7 +327,8 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
       </div>
       <div className="mb-4">
         <label className="block text-gray-400 mb-1">Amount</label>
-        <Input
+        <AmountInput value={amount} onChange={setAmount} />
+        {/* <Input
           type="number"
           value={amount === 0 ? (amountError ? "" : "0") : amount.toString()}
           min={0.01}
@@ -345,16 +347,16 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
           className={`bg-[#333333] text-white border-2 rounded-md ${
             amountError ? "border-red-500" : "border-[#333333]"
           }`}
-        />
+        /> */}
       </div>
       <div className="grid grid-cols-3 gap-3 mb-6">
         {quickAmounts.map((amt) => (
           <button
             key={amt}
             className={`py-2 rounded-2xl text-lg font-medium transition-colors bg-[#333333] text-white hover:bg-orange-500 hover:text-white ${
-              amount === amt ? "bg-orange-500 text-white" : ""
+              amount === amt.toString() ? "bg-orange-500 text-white" : ""
             }`}
-            onClick={() => setAmount(amt)}
+            onClick={() => setAmount(amt.toString())}
           >
             ${amt}
           </button>
@@ -388,7 +390,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
       <Button
         className="bg-orange-500 hover:bg-orange-600 text-black text-lg font-semibold py-3 rounded-xl w-full"
         onClick={handleConfirm}
-        disabled={isLoading}
+        disabled={isLoading || amount === ""}
       >
         {(() => {
           if (isLoading) {
@@ -400,7 +402,7 @@ export const SetFrequencyPopup: React.FC<SetFrequencyPopupProps> = ({
           }
 
           // For new plans, check if user has sufficient allowance
-          const requiredAllowance = BigInt(amount * 1_000_000);
+          const requiredAllowance = BigInt(Number(amount) * 1_000_000);
           const hasSufficientAllowance =
             currentAllowance && currentAllowance >= requiredAllowance;
 
