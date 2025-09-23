@@ -7,12 +7,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum TokenSource {
+  CLANKER
+  GECKOTERMINAL
+  ZORA
+}
+
 model User {
   wallet           String                 @id
   fid              Int?                   @unique
   plans            DCAPlan[]
   portfolioChanges PortfolioDailyChange[]
   createdAt        DateTime               @default(now())
+  Token            Token[]
 }
 
 model Token {
@@ -34,23 +41,34 @@ model Token {
   price1yAgo  Decimal?
   totalSupply Decimal?
 
+  tokenSource TokenSource
+
+  // Which user added this token (by wallet)
+  addedBy       User?   @relation(fields: [addedByWallet], references: [wallet])
+  addedByWallet String?
+
+  // Creator's fid (not a relation)
+  createdByFid    Int?
+  createdByWallet String?
+
   plansOut   DCAPlan[]      @relation("TokenOut")
   executions DCAExecution[]
 }
 
 model DCAPlan {
-  planHash        String         @id
-  user            User           @relation(fields: [userWallet], references: [wallet])
-  userWallet      String
-  tokenOut        Token          @relation("TokenOut", fields: [tokenOutAddress], references: [address])
-  tokenOutAddress String
-  recipient       String
-  amountIn        Decimal
-  frequency       Int
-  lastExecutedAt  Int
-  active          Boolean        @default(true)
-  createdAt       DateTime       @default(now())
-  executions      DCAExecution[]
+  planHash           String         @id
+  user               User           @relation(fields: [userWallet], references: [wallet])
+  userWallet         String
+  tokenOut           Token          @relation("TokenOut", fields: [tokenOutAddress], references: [address])
+  tokenOutAddress    String
+  recipient          String
+  amountIn           Decimal
+  frequency          Int
+  lastExecutedAt     Int
+  active             Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  approvalNotifiedAt DateTime?
+  executions         DCAExecution[]
 }
 
 model DCAExecution {

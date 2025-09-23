@@ -7,8 +7,10 @@ import { BalanceDisplay } from "./ui/BalanceDisplay";
 import InvestedPositionTile from "./ui/InvestedPositionTile";
 import ExplorePositionTile from "./ui/ExplorePositionTile";
 import PositionTileSkeleton from "./ui/PositionTileSkeleton";
+import DotsLoader from "./ui/DotsLoader";
 import TokenView from "~/components/TokenView";
 import { TokenApprovalPopup } from "./ui/TokenApprovalPopup";
+import { TokenAddPopup } from "./ui/TokenAddPopup";
 
 interface Token {
   id: string;
@@ -44,6 +46,14 @@ interface PortfolioData {
     totalInvestedValue?: number;
     percentChange?: number | null;
   }>;
+}
+
+interface PaginationData {
+  page: number;
+  limit: number;
+  totalTokens: number;
+  totalPages: number;
+  hasMore: boolean;
 }
 
 // Utility function to format time ago
@@ -133,7 +143,11 @@ const Home = () => {
   const [portfolioData, setPortfolioData] = useState<PortfolioData | null>(
     null
   );
+  const [paginationData, setPaginationData] = useState<PaginationData | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const { context, isSDKLoaded, addFrame, added } = useMiniApp();
   const { refreshAll } = useRefresh();
   const router = useRouter();
@@ -142,29 +156,17 @@ const Home = () => {
   const [chartMode, setChartMode] = useState<"value" | "percent">("value");
   const [isApprovalOpen, setIsApprovalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showTokenAdd, setShowTokenAdd] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const touchStartYRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
   const pullDistanceRef = useRef(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     pullDistanceRef.current = pullDistance;
   }, [pullDistance]);
 
   const PULL_THRESHOLD = 70;
-  const [dotCount, setDotCount] = useState(0);
-  useEffect(() => {
-    const computeDots = () => {
-      if (typeof window === "undefined") return;
-      const width = window.innerWidth || 320;
-      const spacing = 8; // px between dots
-      let count = Math.max(11, Math.floor(width / spacing));
-      if (count % 2 === 0) count += 1; // odd for a center dot
-      setDotCount(count);
-    };
-    computeDots();
-    window.addEventListener("resize", computeDots);
-    return () => window.removeEventListener("resize", computeDots);
-  }, []);
 
   // Use portfolio data from API if available, otherwise fallback to calculated value
   const totalPortfolioBalance =
@@ -219,14 +221,19 @@ const Home = () => {
   };
 
   const fetchTokens = useCallback(
-    async (options?: { silent?: boolean }) => {
+    async (options?: { silent?: boolean; page?: number; append?: boolean }) => {
       const silent = options?.silent === true;
+      const page = options?.page || 1;
+      const append = options?.append === true;
+
       if (!context?.user?.fid) return;
 
       try {
-        if (!silent) setIsLoading(true);
+        if (!silent && !append) setIsLoading(true);
+        if (append) setIsLoadingMore(true);
+
         const response = await fetch(
-          `/api/plan/getUserPlans/${context.user.fid}`
+          `/api/plan/getUserPlans/${context.user.fid}?page=${page}&limit=5`
         );
 
         if (!response.ok) {
@@ -235,9 +242,23 @@ const Home = () => {
 
         const result = await response.json();
 
+        console.log("API Response:", {
+          success: result.success,
+          dataLength: result.data?.length,
+          pagination: result.pagination,
+          append,
+        });
+
         if (result.success) {
-          setTokens(result.data);
+          if (append) {
+            console.log("Appending tokens:", result.data.length);
+            setTokens((prev) => [...prev, ...result.data]);
+          } else {
+            console.log("Setting initial tokens:", result.data.length);
+            setTokens(result.data);
+          }
           setPortfolioData(result.portfolio || null);
+          setPaginationData(result.pagination || null);
           await sdk.actions.ready({});
         } else {
           console.error("API returned error:", result.error);
@@ -245,7 +266,8 @@ const Home = () => {
       } catch (error) {
         console.error("Error fetching tokens:", error);
       } finally {
-        if (!silent) setIsLoading(false);
+        if (!silent && !append) setIsLoading(false);
+        if (append) setIsLoadingMore(false);
       }
     },
     [context]
@@ -362,6 +384,81 @@ const Home = () => {
     }
   }, [shouldRefreshOnClose, fetchTokens, refreshAll]);
 
+  // Infinite scroll handler
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current || !paginationData || isLoadingMore) return;
+
+    const { scrollTop, scrollHeight, clientHeight } =
+      scrollContainerRef.current;
+    const isNearBottom = scrollTop + clientHeight >= scrollHeight - 100; // 100px threshold
+
+    console.log("Scroll debug:", {
+      scrollTop,
+      scrollHeight,
+      clientHeight,
+      isNearBottom,
+      hasMore: paginationData.hasMore,
+      currentPage: paginationData.page,
+      isLoadingMore,
+    });
+
+    if (isNearBottom && paginationData.hasMore) {
+      console.log("Fetching next page:", paginationData.page + 1);
+      fetchTokens({
+        page: paginationData.page + 1,
+        append: true,
+        silent: true,
+      });
+    }
+  }, [paginationData, isLoadingMore, fetchTokens]);
+
+  // Add scroll listener
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.addEventListener("scroll", handleScroll);
+      return () => container.removeEventListener("scroll", handleScroll);
+    }
+  }, [handleScroll]);
+
+  // Fallback: Use window scroll if container scroll doesn't work
+  useEffect(() => {
+    const handleWindowScroll = () => {
+      if (!paginationData || isLoadingMore) return;
+
+      const scrollTop =
+        window.pageYOffset || document.documentElement.scrollTop;
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      const isNearBottom = scrollTop + windowHeight >= documentHeight - 100;
+
+      console.log("Window scroll debug:", {
+        scrollTop,
+        windowHeight,
+        documentHeight,
+        isNearBottom,
+        hasMore: paginationData.hasMore,
+        currentPage: paginationData.page,
+        isLoadingMore,
+      });
+
+      if (isNearBottom && paginationData.hasMore) {
+        console.log(
+          "Fetching next page via window scroll:",
+          paginationData.page + 1
+        );
+        fetchTokens({
+          page: paginationData.page + 1,
+          append: true,
+          silent: true,
+        });
+      }
+    };
+
+    window.addEventListener("scroll", handleWindowScroll);
+    return () => window.removeEventListener("scroll", handleWindowScroll);
+  }, [paginationData, isLoadingMore, fetchTokens]);
+
   // Show loading if SDK is not loaded yet
   if (!isSDKLoaded) {
     return (
@@ -373,7 +470,8 @@ const Home = () => {
 
   return (
     <div
-      className="min-h-screen bg-[#0C0C0C] text-white p-4 font-sans"
+      ref={scrollContainerRef}
+      className="min-h-screen bg-[#0C0C0C] text-white p-4 font-sans overflow-y-auto"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -400,42 +498,8 @@ const Home = () => {
               }}
             />
           )}
-          {isRefreshing && (
-            <div className="absolute inset-x-0 top-0 h-[2px] flex items-start justify-between">
-              {Array.from({ length: dotCount }).map((_, idx) => {
-                const center = Math.floor(Math.max(1, dotCount) / 2);
-                const distance = Math.abs(idx - center);
-                const delayMs = distance * 60;
-                return (
-                  <span
-                    key={idx}
-                    className="dotLine"
-                    style={{ animationDelay: `${delayMs}ms` }}
-                  />
-                );
-              })}
-            </div>
-          )}
+          <DotsLoader isVisible={isRefreshing} position="top" />
         </div>
-        <style jsx>{`
-          .dotLine {
-            width: 2px;
-            height: 2px;
-            border-radius: 9999px;
-            background: #f97316;
-            box-shadow: 0 0 6px rgba(249, 115, 22, 0.7);
-            animation: fade 900ms ease-in-out infinite;
-          }
-          @keyframes fade {
-            0%,
-            100% {
-              opacity: 0.25;
-            }
-            50% {
-              opacity: 1;
-            }
-          }
-        `}</style>
       </div>
       {/* Header */}
       <div className="flex justify-between items-center mb-8">
@@ -803,7 +867,23 @@ const Home = () => {
 
       {/* Explore More Tokens */}
       <div>
-        <h2 className="text-lg font-medium mb-4">Explore more tokens</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-medium">Explore more tokens</h2>
+          <button
+            onClick={() => setShowTokenAdd(true)}
+            className="w-8 h-8 bg-orange-500 hover:bg-orange-600 text-black rounded-full flex items-center justify-center transition-colors"
+          >
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
+              <path
+                d="M12 5v14M5 12h14"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
 
         {isLoading ? (
           // Show skeleton loading while fetching data
@@ -814,25 +894,40 @@ const Home = () => {
             <PositionTileSkeleton />
           </>
         ) : (
-          tokens
-            .filter((token) => !token.hasPlan)
-            .map((token) => (
-              <div
-                key={token.id || token.address}
-                className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
-                onClick={() => setOpenTokenAddress(token.address)}
-              >
-                <ExplorePositionTile
-                  icon={token.image || token.symbol?.[0] || "₿"}
-                  iconBgColor="bg-orange-600"
-                  name={token.name}
-                  currentPrice={formatPrice(token.currentPrice)}
-                  marketCap={formatLargeNumber(token.marketCapUsd)}
-                  volume24h={formatLargeNumber(token.volume24h)}
-                  fdv={formatLargeNumber(token.fdvUsd)}
-                />
-              </div>
-            ))
+          <>
+            {tokens
+              .filter((token) => !token.hasPlan)
+              .map((token) => (
+                <div
+                  key={token.id || token.address}
+                  className="cursor-pointer hover:cursor-pointer transition-all duration-200 hover:opacity-80"
+                  onClick={() => setOpenTokenAddress(token.address)}
+                >
+                  <ExplorePositionTile
+                    icon={token.image || token.symbol?.[0] || "₿"}
+                    iconBgColor="bg-orange-600"
+                    name={token.name}
+                    currentPrice={formatPrice(token.currentPrice)}
+                    marketCap={formatLargeNumber(token.marketCapUsd)}
+                    volume24h={formatLargeNumber(token.volume24h)}
+                    fdv={formatLargeNumber(token.fdvUsd)}
+                  />
+                </div>
+              ))}
+
+            {/* Loading more indicator */}
+            <DotsLoader isVisible={isLoadingMore} position="bottom" />
+
+            {/* End of list indicator */}
+            {!paginationData?.hasMore &&
+              tokens.filter((token) => !token.hasPlan).length > 0 && (
+                <div className="flex justify-center items-center py-4">
+                  <span className="text-gray-500 text-sm">
+                    No more tokens to load
+                  </span>
+                </div>
+              )}
+          </>
         )}
       </div>
 
@@ -849,6 +944,14 @@ const Home = () => {
         open={isApprovalOpen}
         onClose={() => setIsApprovalOpen(false)}
         onApprove={() => setIsApprovalOpen(false)}
+      />
+      <TokenAddPopup
+        open={showTokenAdd}
+        onClose={() => setShowTokenAdd(false)}
+        onTokenAdded={(tokenAddress) => {
+          // Refresh tokens after adding a new token
+          fetchTokens();
+        }}
       />
     </div>
   );

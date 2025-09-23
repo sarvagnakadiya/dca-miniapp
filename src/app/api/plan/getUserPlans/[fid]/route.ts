@@ -10,7 +10,18 @@ export async function GET(
 ) {
   try {
     const { fid } = await context.params;
-    console.log("Fetching user plans for FID:", fid);
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "7");
+
+    console.log(
+      "Fetching user plans for FID:",
+      fid,
+      "Page:",
+      page,
+      "Limit:",
+      limit
+    );
 
     // Validate FID
     if (!fid || isNaN(Number(fid))) {
@@ -206,6 +217,16 @@ export async function GET(
       return volumeB - volumeA; // Descending order
     });
 
+    // Apply pagination
+    const offset = (page - 1) * limit;
+    const paginatedTokens = sortedTokensWithUserData.slice(
+      offset,
+      offset + limit
+    );
+    const totalTokens = sortedTokensWithUserData.length;
+    const totalPages = Math.ceil(totalTokens / limit);
+    const hasMore = page < totalPages;
+
     // Calculate portfolio-level metrics
     const portfolioCurrentValue = sortedTokensWithUserData.reduce(
       (sum, token) => sum + (token.currentValue || 0),
@@ -265,7 +286,14 @@ export async function GET(
     // Validate response structure
     const response = {
       success: true,
-      data: sortedTokensWithUserData,
+      data: paginatedTokens,
+      pagination: {
+        page,
+        limit,
+        totalTokens,
+        totalPages,
+        hasMore,
+      },
       portfolio: {
         portfolioCurrentValue,
         portfolioInvestedAmount,
@@ -278,7 +306,9 @@ export async function GET(
       hasSuccess: "success" in response,
       hasData: "data" in response,
       hasPortfolio: "portfolio" in response,
+      hasPagination: "pagination" in response,
       dataLength: response.data.length,
+      pagination: response.pagination,
     });
 
     return NextResponse.json(response, {

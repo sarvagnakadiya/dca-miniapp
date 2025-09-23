@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "~/lib/prisma";
+import { TokenSource } from "@prisma/client";
 
 interface CreateTokenRequest {
   address: string;
@@ -62,6 +63,7 @@ export async function POST(req: Request) {
         wrappedName,
         wrappedSymbol,
         originalAddress,
+        tokenSource: TokenSource.CLANKER, // Default to CLANKER for manually created tokens
       },
     });
 
