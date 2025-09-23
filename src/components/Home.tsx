@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useMiniApp } from "~/components/providers/FrameProvider";
 import { useRefresh } from "~/components/providers/RefreshProvider";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import sdk from "@farcaster/miniapp-sdk";
 import { BalanceDisplay } from "./ui/BalanceDisplay";
 import InvestedPositionTile from "./ui/InvestedPositionTile";
@@ -34,6 +35,14 @@ interface Token {
   fdvUsd: number;
   volume24h: number;
   marketCapUsd: number;
+}
+
+interface SearchToken {
+  id: string;
+  address: string;
+  symbol: string;
+  name: string;
+  image: string | null;
 }
 
 interface PortfolioData {
@@ -158,10 +167,15 @@ const Home = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showTokenAdd, setShowTokenAdd] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchToken[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const touchStartYRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
   const pullDistanceRef = useRef(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
     pullDistanceRef.current = pullDistance;
   }, [pullDistance]);
@@ -233,7 +247,7 @@ const Home = () => {
         if (append) setIsLoadingMore(true);
 
         const response = await fetch(
-          `/api/plan/getUserPlans/${context.user.fid}?page=${page}&limit=5`
+          `/api/plan/getUserPlans/${context.user.fid}?page=${page}&limit=15`
         );
 
         if (!response.ok) {
@@ -273,6 +287,55 @@ const Home = () => {
     [context]
   );
 
+  const searchTokens = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      setIsSearching(true);
+      const response = await fetch(
+        `/api/searchToken?q=${encodeURIComponent(query)}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        setSearchResults(result.data || []);
+      } else {
+        console.error("Search API returned error:", result.error);
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error("Error searching tokens:", error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchQuery(value);
+
+      // Clear existing timeout
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+
+      // Set new timeout for debounced search
+      searchTimeoutRef.current = setTimeout(() => {
+        searchTokens(value);
+      }, 300);
+    },
+    [searchTokens]
+  );
+
   useEffect(() => {
     console.log("fetching tokens");
     console.log("context:::", context);
@@ -306,6 +369,15 @@ const Home = () => {
 
     fetchTokens();
   }, [context, addFrame, added, fetchTokens]);
+
+  // Cleanup search timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (typeof window !== "undefined" && window.scrollY <= 0) {
@@ -505,9 +577,90 @@ const Home = () => {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-xl font-medium">Home</h1>
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowSearch(!showSearch)}
+            className="w-8 h-8 bg-black rounded-full flex items-center justify-center hover:border hover:border-orange-500 transition-colors"
+          >
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
+              <rect width="24" height="24" fill="black" />
+              <path
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                stroke="orange"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
           <BalanceDisplay onOpenApproval={() => setIsApprovalOpen(true)} />
         </div>
       </div>
+
+      {/* Search Section */}
+      {showSearch && (
+        <div className="mb-6">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search tokens..."
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="w-full bg-[#1E1E1F] border border-[#2A2A2A] rounded-lg px-2 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-orange-500 transition-colors"
+              autoFocus
+            />
+            {isSearching && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            )}
+          </div>
+
+          {/* Search Results */}
+          {searchQuery && (
+            <div className="mt-2 space-y-1">
+              {searchResults.length > 0 ? (
+                searchResults.map((token) => (
+                  <div
+                    key={token.id}
+                    onClick={() => {
+                      setOpenTokenAddress(token.address);
+                      setShowSearch(false);
+                      setSearchQuery("");
+                      setSearchResults([]);
+                    }}
+                    className="flex items-center space-x-3 p-2 bg-[#1E1E1F] border border-[#2A2A2A] rounded-lg hover:bg-[#2A2A2A] transition-colors cursor-pointer"
+                  >
+                    <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center text-black font-semibold text-sm">
+                      {token.image ? (
+                        <Image
+                          src={token.image}
+                          alt={token.symbol}
+                          width={20}
+                          height={20}
+                          className="w-5 h-5 rounded-full object-cover"
+                        />
+                      ) : (
+                        token.symbol?.[0] || "?"
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-white font-medium text-sm">
+                        {token.symbol}
+                      </div>
+                      <div className="text-gray-400 text-xs">{token.name}</div>
+                    </div>
+                  </div>
+                ))
+              ) : !isSearching && searchQuery ? (
+                <div className="text-center py-2 text-gray-400">
+                  <p className="text-sm">No tokens found</p>
+                  <p className="text-xs mt-0.5">Try a different search term</p>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Portfolio Balance Section */}
       <div className="mb-8">

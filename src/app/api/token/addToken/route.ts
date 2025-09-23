@@ -32,13 +32,13 @@ interface TokenSearchResponse {
   description?: string;
   verified: boolean;
   user?: {
-    fid: number;
-    username: string;
-    pfp: string;
-    displayName: string;
+    fid?: number;
+    username?: string;
+    pfp?: string;
+    displayName?: string;
     creator_address?: string;
   };
-  source: "database" | "clanker" | "zora";
+  source: "database" | "clanker" | "zora" | "geckoTerminal";
   rawData?: ClankerRawData | ZoraRawData;
 }
 
@@ -108,54 +108,61 @@ export async function POST(request: NextRequest) {
       case "zora":
         tokenSource = TokenSource.ZORA;
         break;
+      case "geckoTerminal":
+        tokenSource = TokenSource.GECKOTERMINAL;
+        break;
       default:
         tokenSource = TokenSource.CLANKER; // Default fallback
     }
 
-    // Extract creator information
-    const createdByFid = tokenData.user?.fid;
-    const createdByWallet = tokenData.user
-      ? tokenData.user?.creator_address
-      : null;
-
-    console.log("createdByWallet", createdByWallet);
+    // Extract creator information (optional fields)
+    const createdByFid = tokenData.user?.fid || null;
+    const createdByWallet = tokenData.user?.creator_address || null;
 
     // Create token in database
     const newToken = await prisma.token.create({
       data: {
+        // Required fields
         address: contractAddress.toLowerCase(),
         symbol: tokenData.symbol,
         name: tokenData.name,
         decimals: 18, // Default to 18 decimals, could be extracted from rawData if available
-        about: tokenData.description,
-        image: tokenData.imgUrl,
         isWrapped: false, // Default to false, could be determined from token type
         tokenSource: tokenSource,
-        addedByWallet: walletAddress,
-        createdByFid: createdByFid,
-        createdByWallet: createdByWallet,
-        // Optional fields that could be populated from rawData
-        totalSupply: (tokenData.rawData as ClankerRawData)?.supply
-          ? BigInt((tokenData.rawData as ClankerRawData).supply!).toString()
-          : (tokenData.rawData as ZoraRawData)?.zora20Token?.totalSupply
-          ? BigInt(
-              (tokenData.rawData as ZoraRawData).zora20Token!.totalSupply!
-            ).toString()
-          : null,
-        marketcap: (tokenData.rawData as ClankerRawData)?.starting_market_cap
-          ? (
-              tokenData.rawData as ClankerRawData
-            ).starting_market_cap!.toString()
-          : (tokenData.rawData as ZoraRawData)?.zora20Token?.marketCap
-          ? (
-              tokenData.rawData as ZoraRawData
-            ).zora20Token!.marketCap!.toString()
-          : null,
-        volume24h: (tokenData.rawData as ZoraRawData)?.zora20Token?.volume24h
-          ? (
-              tokenData.rawData as ZoraRawData
-            ).zora20Token!.volume24h!.toString()
-          : null,
+
+        // Optional fields - only include if data exists
+        ...(tokenData.description && { about: tokenData.description }),
+        ...(tokenData.imgUrl && { image: tokenData.imgUrl }),
+        ...(walletAddress && { addedByWallet: walletAddress }),
+        ...(createdByFid && { createdByFid }),
+        ...(createdByWallet && { createdByWallet }),
+
+        // Optional market data fields - only include if data exists
+        ...((tokenData.rawData as ClankerRawData)?.supply && {
+          totalSupply: BigInt(
+            (tokenData.rawData as ClankerRawData).supply!
+          ).toString(),
+        }),
+        ...((tokenData.rawData as ZoraRawData)?.zora20Token?.totalSupply && {
+          totalSupply: BigInt(
+            (tokenData.rawData as ZoraRawData).zora20Token!.totalSupply!
+          ).toString(),
+        }),
+        ...((tokenData.rawData as ClankerRawData)?.starting_market_cap && {
+          marketcap: (
+            tokenData.rawData as ClankerRawData
+          ).starting_market_cap!.toString(),
+        }),
+        ...((tokenData.rawData as ZoraRawData)?.zora20Token?.marketCap && {
+          marketcap: (
+            tokenData.rawData as ZoraRawData
+          ).zora20Token!.marketCap!.toString(),
+        }),
+        ...((tokenData.rawData as ZoraRawData)?.zora20Token?.volume24h && {
+          volume24h: (
+            tokenData.rawData as ZoraRawData
+          ).zora20Token!.volume24h!.toString(),
+        }),
       },
     });
 
@@ -166,12 +173,16 @@ export async function POST(request: NextRequest) {
         address: newToken.address,
         name: newToken.name,
         symbol: newToken.symbol,
-        image: newToken.image,
-        about: newToken.about,
+        ...(newToken.image && { image: newToken.image }),
+        ...(newToken.about && { about: newToken.about }),
         tokenSource: newToken.tokenSource,
-        addedByWallet: newToken.addedByWallet,
-        createdByFid: newToken.createdByFid,
-        createdByWallet: newToken.createdByWallet,
+        ...(newToken.addedByWallet && {
+          addedByWallet: newToken.addedByWallet,
+        }),
+        ...(newToken.createdByFid && { createdByFid: newToken.createdByFid }),
+        ...(newToken.createdByWallet && {
+          createdByWallet: newToken.createdByWallet,
+        }),
       },
     });
   } catch (error) {

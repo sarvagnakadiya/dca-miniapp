@@ -12,7 +12,7 @@ export async function GET(
     const { fid } = await context.params;
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "7");
+    const limit = parseInt(searchParams.get("limit") || "10");
 
     console.log(
       "Fetching user plans for FID:",

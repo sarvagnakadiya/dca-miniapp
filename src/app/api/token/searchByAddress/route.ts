@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { getCoin } from "@zoralabs/coins-sdk";
 import { base } from "viem/chains";
-import { isAddress } from "viem";
+import { formatEther, isAddress } from "viem";
 
 interface ClankerRawData {
   supply?: string;
@@ -19,6 +19,26 @@ interface ZoraRawData {
   [key: string]: unknown;
 }
 
+interface GeckoTerminalRawData {
+  data?: {
+    attributes?: {
+      address?: string;
+      name?: string;
+      symbol?: string;
+      decimals?: number;
+      image_url?: string;
+      total_supply?: string;
+      price_usd?: string;
+      fdv_usd?: string;
+      market_cap_usd?: string;
+      volume_usd?: {
+        h24?: string;
+      };
+    };
+  };
+  [key: string]: unknown;
+}
+
 interface TokenResponse {
   contractAddress: string;
   name: string;
@@ -28,14 +48,14 @@ interface TokenResponse {
   supply?: string;
   verified: boolean;
   user?: {
-    fid: number;
-    username: string;
-    pfp: string;
-    displayName: string;
+    fid?: number;
+    username?: string;
+    pfp?: string;
+    displayName?: string;
     creator_address?: string;
   };
-  source: "database" | "clanker" | "zora";
-  rawData?: ClankerRawData | ZoraRawData;
+  source: "database" | "clanker" | "zora" | "geckoTerminal";
+  rawData?: ClankerRawData | ZoraRawData | GeckoTerminalRawData;
 }
 
 export async function GET(request: NextRequest) {
@@ -94,7 +114,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(zoraResult.value);
     }
 
-    // If both APIs failed
+    // If both Clanker and Zora failed, try GeckoTerminal as fallback
+    const geckoResult = await searchGeckoTerminal(contractAddress);
+    if (geckoResult) {
+      return NextResponse.json(geckoResult);
+    }
+
+    // If all APIs failed, don't return a token with unknown source
     return NextResponse.json(
       { error: "Token not found in any source" },
       { status: 404 }
@@ -137,15 +163,18 @@ async function searchClanker(
       description: token.description,
       supply: "100000000000",
       verified: token.tags?.verified || false,
-      user: user
-        ? {
-            fid: user.fid,
-            username: user.username,
-            pfp: user.pfp_url,
-            displayName: user.display_name,
-            creator_address: user.custody_address,
-          }
-        : undefined,
+      user:
+        user && (user.username || user.display_name)
+          ? {
+              ...(user.fid && { fid: user.fid }),
+              ...(user.username && { username: user.username }),
+              ...(user.pfp_url && { pfp: user.pfp_url }),
+              ...(user.display_name && { displayName: user.display_name }),
+              ...(user.custody_address && {
+                creator_address: user.custody_address,
+              }),
+            }
+          : undefined,
       source: "clanker",
       rawData: data,
     };
@@ -172,15 +201,26 @@ async function searchZora(
 
     const creatorProfile = coin.creatorProfile;
     const user =
-      creatorProfile && creatorProfile.socialAccounts?.farcaster?.id
+      creatorProfile &&
+      (creatorProfile.handle ||
+        creatorProfile.socialAccounts?.farcaster?.displayName)
         ? {
-            fid: parseInt(creatorProfile.socialAccounts.farcaster.id),
-            username: creatorProfile.handle,
-            pfp: creatorProfile.avatar?.previewImage?.small || "",
-            displayName:
-              creatorProfile.socialAccounts.farcaster.displayName ||
-              creatorProfile.handle,
-            creator_address: coin?.creatorAddress,
+            ...(creatorProfile.socialAccounts?.farcaster?.id && {
+              fid: parseInt(creatorProfile.socialAccounts.farcaster.id),
+            }),
+            ...(creatorProfile.handle && { username: creatorProfile.handle }),
+            ...(creatorProfile.avatar?.previewImage?.small && {
+              pfp: creatorProfile.avatar.previewImage.small,
+            }),
+            ...((creatorProfile.socialAccounts?.farcaster?.displayName ||
+              creatorProfile.handle) && {
+              displayName:
+                creatorProfile.socialAccounts?.farcaster?.displayName ||
+                creatorProfile.handle,
+            }),
+            ...(coin?.creatorAddress && {
+              creator_address: coin.creatorAddress,
+            }),
           }
         : undefined;
 
@@ -200,6 +240,44 @@ async function searchZora(
     };
   } catch (error) {
     console.error("Zora API error:", error);
+    return null;
+  }
+}
+
+async function searchGeckoTerminal(
+  contractAddress: string
+): Promise<TokenResponse | null> {
+  try {
+    const response = await fetch(
+      `https://api.geckoterminal.com/api/v2/networks/base/tokens/${contractAddress}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`GeckoTerminal API error: ${response.status}`);
+    }
+
+    const data: GeckoTerminalRawData = await response.json();
+
+    if (!data.data?.attributes) {
+      return null;
+    }
+
+    const attributes = data.data.attributes;
+
+    return {
+      contractAddress: attributes.address || contractAddress,
+      name: attributes.name || "Unknown Token",
+      symbol: attributes.symbol || "UNKNOWN",
+      imgUrl: attributes.image_url,
+      description: undefined, // GeckoTerminal doesn't provide description
+      supply: formatEther(BigInt(Number(attributes.total_supply))),
+      verified: false, // GeckoTerminal doesn't provide verification status
+      user: undefined, // GeckoTerminal doesn't provide user information
+      source: "geckoTerminal",
+      rawData: data,
+    };
+  } catch (error) {
+    console.error("GeckoTerminal API error:", error);
     return null;
   }
 }

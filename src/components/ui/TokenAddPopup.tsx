@@ -31,13 +31,13 @@ interface TokenSearchResponse {
   supply?: string;
   verified: boolean;
   user?: {
-    fid: number;
-    username: string;
-    pfp: string;
-    displayName: string;
+    fid?: number;
+    username?: string;
+    pfp?: string;
+    displayName?: string;
     creator_address?: string;
   };
-  source: "database" | "clanker" | "zora";
+  source: "database" | "clanker" | "zora" | "geckoTerminal" | "unknown";
   rawData?: ClankerRawData | ZoraRawData;
 }
 
@@ -167,6 +167,11 @@ export const TokenAddPopup: React.FC<TokenAddPopupProps> = ({
           text: "Database",
           color: "bg-green-500/20 text-green-400 border-green-500/30",
         };
+      case "geckoTerminal":
+        return {
+          text: "GeckoTerminal",
+          color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+        };
       default:
         return {
           text: "Unknown",
@@ -259,13 +264,16 @@ export const TokenAddPopup: React.FC<TokenAddPopupProps> = ({
                       Verified
                     </span>
                   )}
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full border ${
-                      getSourceBadge(searchResult.source).color
-                    }`}
-                  >
-                    {getSourceBadge(searchResult.source).text}
-                  </span>
+                  {(searchResult.source === "clanker" ||
+                    searchResult.source === "zora") && (
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full border ${
+                        getSourceBadge(searchResult.source).color
+                      }`}
+                    >
+                      {getSourceBadge(searchResult.source).text}
+                    </span>
+                  )}
                 </div>
 
                 {/* Description */}
@@ -275,27 +283,33 @@ export const TokenAddPopup: React.FC<TokenAddPopupProps> = ({
                   </p>
                 )}
 
-                {/* Creator Info */}
-                {searchResult.user && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-400 text-xs">Creator:</span>
-                    <div className="flex items-center gap-1">
-                      {searchResult.user.pfp && (
-                        <Image
-                          src={searchResult.user.pfp}
-                          alt={searchResult.user.displayName}
-                          width={16}
-                          height={16}
-                          className="w-4 h-4 rounded-full"
-                        />
-                      )}
-                      <span className="text-orange-400 text-xs font-medium">
-                        {searchResult.user.displayName ||
-                          searchResult.user.username}
-                      </span>
+                {/* Creator Info - only show if user data exists */}
+                {searchResult.user &&
+                  (searchResult.user.displayName ||
+                    searchResult.user.username) && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 text-xs">Creator:</span>
+                      <div className="flex items-center gap-1">
+                        {searchResult.user.pfp && (
+                          <Image
+                            src={searchResult.user.pfp}
+                            alt={
+                              searchResult.user.displayName ||
+                              searchResult.user.username ||
+                              "Creator"
+                            }
+                            width={16}
+                            height={16}
+                            className="w-4 h-4 rounded-full"
+                          />
+                        )}
+                        <span className="text-orange-400 text-xs font-medium">
+                          {searchResult.user.displayName ||
+                            searchResult.user.username}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
             </div>
 
