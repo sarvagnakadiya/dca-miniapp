@@ -81,7 +81,7 @@ export const BalanceDisplay: React.FC<BalanceDisplayProps> = ({
   return (
     <div className={`flex items-center space-x-3 ${className}`}>
       <div
-        className="flex items-center bg-gray-800 rounded-lg px-3 py-1 text-sm cursor-pointer hover:bg-gray-700 transition-colors"
+        className="flex items-center bg-[#1F1F1F] rounded-lg px-3 py-1 text-sm cursor-pointer hover:bg-gray-700 transition-colors"
         onClick={() => onOpenApproval?.()}
       >
         <Image

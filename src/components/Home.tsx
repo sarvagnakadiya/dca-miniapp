@@ -504,16 +504,6 @@ const Home = () => {
       const documentHeight = document.documentElement.scrollHeight;
       const isNearBottom = scrollTop + windowHeight >= documentHeight - 100;
 
-      console.log("Window scroll debug:", {
-        scrollTop,
-        windowHeight,
-        documentHeight,
-        isNearBottom,
-        hasMore: paginationData.hasMore,
-        currentPage: paginationData.page,
-        isLoadingMore,
-      });
-
       if (isNearBottom && paginationData.hasMore) {
         console.log(
           "Fetching next page via window scroll:",
@@ -579,13 +569,12 @@ const Home = () => {
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setShowSearch(!showSearch)}
-            className="w-8 h-8 bg-black rounded-full flex items-center justify-center hover:border hover:border-orange-500 transition-colors"
+            className="w-8 h-8 bg-[#1F1F1F] rounded-full flex items-center justify-center hover:border hover:border-orange-500 transition-colors"
           >
-            <svg width="16" height="16" fill="none" viewBox="0 0 24 24">
-              <rect width="24" height="24" fill="black" />
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
               <path
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                stroke="orange"
+                stroke="white"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -605,19 +594,38 @@ const Home = () => {
               placeholder="Search tokens..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="w-full bg-[#1E1E1F] border border-[#2A2A2A] rounded-lg px-2 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-orange-500 transition-colors"
+              className="w-full bg-[#1E1E1F] border border-[#2A2A2A] rounded-lg px-2 py-2 pr-8 text-white placeholder-gray-400 focus:outline-none focus:border-orange-500 transition-colors"
               autoFocus
             />
-            {isSearching && (
+            {isSearching ? (
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                 <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
               </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setShowSearch(false);
+                  setSearchQuery("");
+                  setSearchResults([]);
+                }}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 w-6 h-6 bg-[#1E1E1F] border border-[#2A2A2A] rounded-full flex items-center justify-center text-gray-400 hover:text-orange-500 hover:border-orange-500 transition-all duration-200"
+              >
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24">
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
             )}
           </div>
 
           {/* Search Results */}
           {searchQuery && (
-            <div className="mt-2 space-y-1">
+            <div className="space-y-2">
               {searchResults.length > 0 ? (
                 searchResults.map((token) => (
                   <div
