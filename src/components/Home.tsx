@@ -980,7 +980,7 @@ const Home = () => {
                 <InvestedPositionTile
                   icon={token.image || token.symbol?.[0] || "₿"}
                   iconBgColor="bg-orange-500"
-                  name={token.name}
+                  name={token.symbol}
                   currentPrice={formatPrice(token.currentPrice)}
                   startedAgo={formatTimeAgo(token.planCreatedAt)}
                   investedAmount={formatCurrency(token.totalInvestedValue)}
@@ -1011,7 +1011,7 @@ const Home = () => {
                 <InvestedPositionTile
                   icon={token.image || token.symbol?.[0] || "₿"}
                   iconBgColor="bg-gray-600"
-                  name={token.name}
+                  name={token.symbol}
                   currentPrice={formatPrice(token.currentPrice)}
                   startedAgo={
                     token.planCreatedAt
@@ -1067,7 +1067,7 @@ const Home = () => {
                   <ExplorePositionTile
                     icon={token.image || token.symbol?.[0] || "₿"}
                     iconBgColor="bg-orange-600"
-                    name={token.name}
+                    name={token.symbol}
                     currentPrice={formatPrice(token.currentPrice)}
                     marketCap={formatLargeNumber(token.marketCapUsd)}
                     volume24h={formatLargeNumber(token.volume24h)}

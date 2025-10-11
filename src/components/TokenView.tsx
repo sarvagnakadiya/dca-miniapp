@@ -405,14 +405,14 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
     <div className="min-h-screen bg-black text-white p-4 font-sans flex flex-col relative">
       {/* Top Bar */}
       <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4 flex-1 min-w-0">
           <button
             onClick={() => onClose && onClose()}
             className="text-white hover:text-white transition-colors"
           >
             ←
           </button>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 min-w-0">
             {token.icon ? (
               <Image
                 src={token.icon}
@@ -426,10 +426,14 @@ const TokenView: React.FC<TokenViewProps> = ({ tokenAddress, onClose }) => {
                 <span className="text-lg">{token.name[0]}</span>
               </div>
             )}
-            <span className="text-lg font-medium">{token.name}</span>
+            <span className="text-lg font-medium truncate" title={token.name}>
+              {token.name}
+            </span>
           </div>
         </div>
-        <BalanceDisplay onOpenApproval={() => setShowTokenApproval(true)} />
+        <div className="flex-shrink-0">
+          <BalanceDisplay onOpenApproval={() => setShowTokenApproval(true)} />
+        </div>
       </div>
 
       {/* Price & Chart Section */}
